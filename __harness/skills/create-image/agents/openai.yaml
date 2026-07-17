@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create Image"
+  short_description: "Generate and revise visual design assets"
+  default_prompt: "Use $create-image to generate or edit a fashion design image from this brief."

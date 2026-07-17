@@ -1,0 +1,4 @@
+interface:
+  display_name: "Copywriter"
+  short_description: "Write restrained product and UX copy"
+  default_prompt: "Use $copywriter to draft concise onboarding copy from this product brief."

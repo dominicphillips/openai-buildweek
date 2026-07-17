@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create Music"
+  short_description: "Generate an original creative-focus track"
+  default_prompt: "Use $create-music to turn this mood direction into an original instrumental track."

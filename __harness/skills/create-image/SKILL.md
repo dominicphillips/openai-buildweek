@@ -1,0 +1,48 @@
+---
+name: create-image
+description: Generate new raster concepts or edit user-provided design and portrait references with OpenAI gpt-image-2. Use for garment iterations, reference-conditioned visual studies, editorial avatars, and other image tasks that need a saved local artifact and provenance record.
+---
+
+# Create Image
+
+Use `scripts/create_image.py` for a small, portable OpenAI Image API workflow. It reads `OPENAI_API_KEY` from the environment and never stores or prints the key.
+
+## Workflow
+
+1. Confirm the user has the right to use every input and choose an ignored output directory.
+2. Translate brands or designers into concrete attributes; do not request exact logo, signature-artwork, or living-artist imitation.
+3. Run `--dry-run` and inspect the resolved operation, references, size, quality, and output path.
+4. Generate without references or edit with one or more `--reference` files. Use the current design as the first reference for iterative work.
+5. Inspect the output for identity, construction, text, and unintended changes. Reject weak results instead of silently shipping them.
+6. Record model, prompt, inputs, settings, and output in the calling project's provenance data.
+
+## Commands
+
+```bash
+uv run --with 'openai>=2.38,<3' \
+  __harness/skills/create-image/scripts/create_image.py \
+  'Studio product study of a white heavyweight cotton T-shirt' \
+  --output backend/generated/white-tee.png \
+  --quality low \
+  --dry-run
+```
+
+```bash
+uv run --with 'openai>=2.38,<3' \
+  __harness/skills/create-image/scripts/create_image.py \
+  'Preserve the body and fabric. Widen only the neckline by 12 percent.' \
+  --reference backend/uploads/current.png \
+  --reference backend/uploads/neckline-reference.png \
+  --output backend/generated/white-tee-v2.png \
+  --quality low
+```
+
+Read `references/prompting.md` before writing a fashion edit or portrait prompt.
+
+## Constraints
+
+- Default to `gpt-image-2`, `1024x1024`, and `low` for exploratory work.
+- Do not set `input_fidelity`; `gpt-image-2` already processes references at high fidelity.
+- Do not request transparency; `gpt-image-2` does not support it.
+- Keep source portraits and generated portraits clearly labeled. Never present an illustrated avatar as a documentary photograph.
+- Treat moderation blocks and invalid inputs as user-correctable errors; do not retry the same request indefinitely.

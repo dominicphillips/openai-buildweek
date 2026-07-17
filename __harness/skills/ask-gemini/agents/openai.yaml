@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ask Gemini"
+  short_description: "Request an independent Gemini research pass"
+  default_prompt: "Use $ask-gemini to get an independent second opinion on this research question."
