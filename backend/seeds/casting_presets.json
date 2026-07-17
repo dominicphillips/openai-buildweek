@@ -1,0 +1,292 @@
+{
+  "schema_version": 1,
+  "collection_id": "casting-presets-v1",
+  "collection_name": "Fictional adult casting directions",
+  "subject_policy": {
+    "adults_only": true,
+    "minimum_apparent_age": 25,
+    "fictional_people_only": true,
+    "real_person_references_allowed": false,
+    "preserve_garment_design": true,
+    "presentation_is_separate_asset": true,
+    "global_prompt_rules": [
+      "Create one original fictional adult who is visibly age 25 or older.",
+      "Do not resemble or name any real person, celebrity, influencer, model, photographer, or living designer.",
+      "Do not include brands, logos, trademarks, signature graphics, recognizable campaigns, or publication identities.",
+      "Preserve the supplied garment's cut, construction, proportions, color, graphics, finish, and placement exactly.",
+      "Use only neutral unbranded supporting pieces, and do not cover the supplied garment.",
+      "Treat body, skin tone, adult age, and presentation as independent controls; infer no protected trait, personality, intelligence, occupation, health, or behavior.",
+      "Keep the entire garment clear enough for design review; this is an editorial presentation, not a fit or sizing prediction.",
+      "Avoid sexualization, fetish framing, age ambiguity, body shaming, caricature, exoticism, and tokenism."
+    ]
+  },
+  "variation_controls": {
+    "default": "varied",
+    "body_build": [
+      "varied",
+      "lean",
+      "straight",
+      "soft",
+      "muscular",
+      "broad",
+      "full"
+    ],
+    "stature": [
+      "varied",
+      "short",
+      "medium",
+      "tall"
+    ],
+    "skin_tone": [
+      "varied",
+      "deep",
+      "medium-deep",
+      "medium",
+      "light-medium",
+      "light",
+      "very-light"
+    ],
+    "presentation": [
+      "varied",
+      "feminine",
+      "masculine",
+      "androgynous",
+      "mixed-cues"
+    ],
+    "adult_age": [
+      "varied-adult",
+      "25-39",
+      "40-59",
+      "60-plus"
+    ],
+    "pose_access": [
+      "varied",
+      "standing",
+      "seated",
+      "mobility-aid-aware"
+    ],
+    "continuity": [
+      "new-fictional-casting",
+      "keep-generated-character"
+    ]
+  },
+  "ux_copy": {
+    "action": "Style it on a model",
+    "eyebrow": "CASTING DIRECTION",
+    "heading": "Choose a point of view, not a person.",
+    "body": "These fictional editorial setups change the pose, place, and light. Your design stays untouched.",
+    "helper": "Preset names describe the image treatment—not anyone's nationality, identity, job, or personality.",
+    "controls_label": "Vary the casting",
+    "controls_helper": "Body, skin tone, age, and presentation move independently. Leave any field open for a new adult fictional model.",
+    "policy_note": "Adults only. No real-person lookalikes, celebrities, brands, or borrowed campaigns.",
+    "primary_action": "Make a lookbook view",
+    "linked_version_label": "Presentation of {version}",
+    "invariant_badge": "DESIGN UNCHANGED",
+    "retry_action": "Try another casting",
+    "back_action": "Back to the design",
+    "drift_error": "The garment changed in this render, so we didn't save it. Try again with fewer presentation changes.",
+    "failure": "That lookbook view didn't finish. Your design is safe."
+  },
+  "presets": [
+    {
+      "id": "edgy-european-guy",
+      "display_name": "Edgy European Guy",
+      "one_line_mood": "A sharp after-dark city editorial with quiet confidence and a little abrasion.",
+      "wardrobe_context": "Experimental menswear-leaning lookbook; the supplied garment is fully visible, with only a tonal unbranded base layer and plain footwear where needed.",
+      "pose": "Full-body three-quarter stance with weight slightly off-center, one hand relaxed, chin neutral; adapt to an equally assertive seated pose when selected.",
+      "setting": "A fictional old-city service passage with worn stone, brushed metal, and no flags, landmarks, signs, or regional symbols.",
+      "lighting": "Cool overhead spill with a narrow warm edge, restrained contrast, and true garment color.",
+      "casting_variation_guidance": {
+        "body": "Any adult build or stature; rotate broadly rather than defaulting to a thin editorial body.",
+        "skin": "Any skin tone, selected independently; the label never indicates nationality or ancestry.",
+        "presentation": "Masculine-leaning or androgynous styling by default, with all presentation controls available.",
+        "age": "Adults 25+; include middle-aged and older adults in varied rotation.",
+        "pose_access": "Keep the off-center attitude in standing, seated, or mobility-aid-aware versions without hiding the garment."
+      },
+      "prompt_fragment": "Place the unchanged supplied garment on one original fictional adult model age 25+, in a sharp after-dark old-city editorial. Use an off-center full-body three-quarter pose, worn stone and brushed metal, cool overhead light with a restrained warm edge, and a distinct non-famous face. Keep the casting globally nonspecific; do not infer nationality, ancestry, accent, or behavior.",
+      "avoid_list": [
+        "national flags, maps, landmarks, passports, or regional caricature",
+        "named cities or claims about nationality or ancestry",
+        "cigarettes, intoxication, aggression, or criminal coding",
+        "recognizable luxury styling or branded tailoring",
+        "extreme thinness as the default fashion ideal",
+        "face resemblance to any real model or celebrity"
+      ]
+    },
+    {
+      "id": "nerdy-tech-girl",
+      "display_name": "Nerdy Tech Girl",
+      "one_line_mood": "Precise, curious, slightly playful studio energy without corporate polish.",
+      "wardrobe_context": "Independent creative-technology studio lookbook; the garment remains the hero, with simple unbranded bottoms and shoes only if the frame requires them.",
+      "pose": "Open full-body stance beside a low prototype table, one hand hovering near an unlabeled object but clear of the garment; offer a composed seated alternative.",
+      "setting": "An invented prototyping room with modular surfaces, soft cable geometry, paper notes without legible text, and generic unbranded devices.",
+      "lighting": "Clean neutral key light with a quiet monitor-blue edge and accurate fabric texture.",
+      "casting_variation_guidance": {
+        "body": "Any adult build or stature; competence and curiosity are never encoded through body shape.",
+        "skin": "Any skin tone, varied independently from hair, facial structure, and presentation.",
+        "presentation": "Feminine-leaning or androgynous styling by default; the title is mood-board shorthand, not a gender-identity claim.",
+        "age": "Adults 25+ only, with no school, teen, or infantilized styling.",
+        "pose_access": "Translate the workstation composition for standing, seated, or mobility-aid-aware casting while keeping the garment unobstructed."
+      },
+      "prompt_fragment": "Place the unchanged supplied garment on one original fictional adult model age 25+, in a precise playful independent-tech studio editorial. Use a clear full-body pose near a low prototype table, generic unlabeled tools, modular surfaces, clean neutral light, and a subtle monitor-blue edge. Do not infer intelligence, occupation, gender identity, social behavior, or a need for glasses from the casting.",
+      "avoid_list": [
+        "school uniforms, teen cues, pigtail infantilization, or childish props",
+        "glasses as a required symbol of intelligence",
+        "sexualized office poses or voyeuristic camera angles",
+        "company logos, product interfaces, readable code, or branded devices",
+        "hacker stereotypes, hooded anonymity, or neon cyberpunk clichés",
+        "face resemblance to any real founder, employee, model, or celebrity"
+      ]
+    },
+    {
+      "id": "concrete-romantic",
+      "display_name": "Concrete Romantic",
+      "one_line_mood": "Tender fabric and human warmth held against a quiet raw structure.",
+      "wardrobe_context": "Soft editorial styling around the supplied garment, using one neutral unbranded supporting layer only when it does not obscure construction or silhouette.",
+      "pose": "Relaxed full-body contrapposto with shoulders open and hands away from key garment details; seated variation uses the same gentle asymmetry.",
+      "setting": "An abstract cast-concrete room with a single linen curtain and no identifiable architecture.",
+      "lighting": "Large diffused window light, soft shadow falloff, and a faint reflected warmth from outside frame.",
+      "casting_variation_guidance": {
+        "body": "Especially effective across soft, broad, full, lean, and muscular adult builds; no build is the canonical version.",
+        "skin": "Use any skin tone with lighting adjusted for accurate, dimensional exposure rather than a single fixed recipe.",
+        "presentation": "Feminine, masculine, androgynous, or mixed cues all fit the direction.",
+        "age": "Adults 25+ across the full offered age range; retain visible age texture.",
+        "pose_access": "Offer standing, seated, and mobility-aid-aware compositions without turning access equipment into a theme."
+      },
+      "prompt_fragment": "Present the unchanged supplied garment on one original fictional adult model age 25+ in a quiet concrete-and-linen editorial. Use a relaxed asymmetric full-body pose, an abstract raw room, large diffused window light, gentle reflected warmth, visible natural skin texture, and a distinct non-famous face. Let softness come from light and gesture, not from assumptions about identity.",
+      "avoid_list": [
+        "recognizable buildings or architect references",
+        "wedding, bridal, angelic, or purity symbolism",
+        "beauty retouching that removes age or skin texture",
+        "body-shape euphemisms or before-and-after framing",
+        "fabric or props covering garment construction",
+        "face resemblance to any real model or celebrity"
+      ]
+    },
+    {
+      "id": "quiet-sports-futurist",
+      "display_name": "Quiet Sports Futurist",
+      "one_line_mood": "Kinetic and technical, stripped of stadium noise and superhero spectacle.",
+      "wardrobe_context": "Movement-led lookbook with the supplied garment unchanged; add only plain unbranded performance basics that do not compete with it.",
+      "pose": "Balanced mid-step or gentle pivot captured full-body, with limbs clear of important graphics, seams, and closures; provide a dynamic seated equivalent.",
+      "setting": "A matte training volume marked by abstract floor lines, with no team, gym, or event identity.",
+      "lighting": "Broad white side light with a crisp controlled rim and minimal motion blur.",
+      "casting_variation_guidance": {
+        "body": "Cast across all adult builds and statures; athletic energy comes from direction and timing, not muscularity or thinness.",
+        "skin": "Any skin tone with equal highlight detail and no desaturation of deeper tones.",
+        "presentation": "All presentation options are valid; avoid gender-coded sport roles.",
+        "age": "Adults 25+ including older adults; movement should remain believable and non-patronizing.",
+        "pose_access": "Standing, seated, prosthesis-visible, and mobility-aid-aware motion studies are equally valid."
+      },
+      "prompt_fragment": "Present the unchanged supplied garment on one original fictional adult model age 25+ in a restrained movement study. Use a balanced mid-step or equivalent dynamic seated pose, abstract matte floor lines, broad white side light, a controlled rim, minimal blur, accurate garment details, and a distinct non-famous face. Convey athletic energy through composition rather than a prescribed body ideal.",
+      "avoid_list": [
+        "sports brands, team colors, uniforms, numbers, medals, or stadiums",
+        "superhero poses, sci-fi armor, or glowing body effects",
+        "muscularity or thinness presented as the only athletic body",
+        "medicalized framing of mobility aids, prostheses, or limb difference",
+        "motion blur that obscures the garment",
+        "face resemblance to any real athlete, model, or celebrity"
+      ]
+    },
+    {
+      "id": "sunday-market-collector",
+      "display_name": "Sunday Market Collector",
+      "one_line_mood": "Tactile, resourceful, and sun-warmed, like a morning spent finding useful oddities.",
+      "wardrobe_context": "Eclectic but restrained lookbook; keep the supplied garment fully readable and pair it only with one or two texture-rich, unbranded basics.",
+      "pose": "Natural full-body pause with one low neutral tote or folded paper held away from the garment; seated option rests props outside the silhouette.",
+      "setting": "A fictional open-air materials stall with blank crates, fabric remnants, and no legible signs or culturally specific goods.",
+      "lighting": "Warm early daylight broken by soft canopy shade, with faithful color and gentle texture contrast.",
+      "casting_variation_guidance": {
+        "body": "Rotate through all adult builds and statures without using eclectic styling to disguise or reshape the body.",
+        "skin": "Any skin tone; adjust warm light to preserve natural tone rather than orange-shifting the subject.",
+        "presentation": "Feminine, masculine, androgynous, and mixed-cue styling all suit the direction.",
+        "age": "Adults 25+ with strong representation across middle-aged and older casting.",
+        "pose_access": "Use accessible stall spacing and adapt prop placement for standing, seated, or mobility-aid-aware poses."
+      },
+      "prompt_fragment": "Present the unchanged supplied garment on one original fictional adult model age 25+ in a tactile early-morning materials-market editorial. Use a natural full-body pause, blank crates and fabric remnants, soft canopy shade, restrained warm daylight, faithful garment color, and a distinct non-famous face. Keep the place invented and culturally nonspecific.",
+      "avoid_list": [
+        "ethnic-market exoticism, tourism imagery, or culturally specific costume",
+        "readable signs, currencies, flags, maps, or identifiable locations",
+        "hoarding caricature or claims about class or income",
+        "busy props that hide or visually rewrite the garment",
+        "brand marks, vintage labels, or recognizable packaging",
+        "face resemblance to any real vendor, model, or celebrity"
+      ]
+    },
+    {
+      "id": "after-hours-art-handler",
+      "display_name": "After-Hours Art Handler",
+      "one_line_mood": "Practical gallery calm with traces of labor and a clean editorial edge.",
+      "wardrobe_context": "Workwear-inflected presentation of the supplied garment, with plain unbranded trousers and protective footwear only where they leave the design unobstructed.",
+      "pose": "Grounded front-facing full-body stance beside an empty padded plinth, hands visible and off the garment; seated pose uses a low equipment case.",
+      "setting": "An invented back-of-gallery room with blank walls, moving blankets, and unlabeled hardware.",
+      "lighting": "Neutral track-light pool with soft ambient spill and enough fill for accurate dark-fabric detail.",
+      "casting_variation_guidance": {
+        "body": "All adult builds and statures fit; practical presence is conveyed by stance, not assumptions about strength or occupation.",
+        "skin": "Any skin tone, lit with sufficient fill and no fixed association to labor or role.",
+        "presentation": "All presentation options are valid; supporting pieces should not become a gendered uniform.",
+        "age": "Adults 25+ across the available age bands.",
+        "pose_access": "Standing, seated, and mobility-aid-aware versions should keep pathways clear and the framing matter-of-fact."
+      },
+      "prompt_fragment": "Present the unchanged supplied garment on one original fictional adult model age 25+ in an invented after-hours gallery workroom. Use a grounded front-facing full-body stance or accessible seated equivalent, a blank padded plinth, unlabeled hardware, neutral track light, accurate dark-fabric detail, and a distinct non-famous face. Treat the job-like title as scene direction only, not a claim about occupation or class.",
+      "avoid_list": [
+        "recognizable artworks, artists, galleries, museums, or exhibition identities",
+        "employee badges, uniforms, logos, hard-hat theater, or staged danger",
+        "class coding, occupational stereotyping, or claims about physical strength",
+        "art props that compete with or cover the garment",
+        "dramatic darkness that erases garment detail",
+        "face resemblance to any real artist, worker, model, or celebrity"
+      ]
+    },
+    {
+      "id": "analog-club-regular",
+      "display_name": "Analog Club Regular",
+      "one_line_mood": "Late-night warmth, imperfect rhythm, and a flash of handmade glamour.",
+      "wardrobe_context": "Independent nightlife editorial with the supplied garment unchanged; supporting pieces stay minimal, opaque, unbranded, and non-costume-like.",
+      "pose": "Full-body paused-dance gesture with a slight shoulder turn and hands clear of garment details; seated variation catches the same rhythm through posture.",
+      "setting": "A small invented listening room with acoustic panels, a blank speaker cabinet, and no crowd or venue identity.",
+      "lighting": "Low amber practical light, a muted magenta bounce, and neutral front fill to preserve color and construction.",
+      "casting_variation_guidance": {
+        "body": "All adult builds and statures belong in the scene; do not equate nightlife with a narrow body ideal.",
+        "skin": "Any skin tone, with adequate neutral fill so colored light never flattens or misrepresents it.",
+        "presentation": "Feminine, masculine, androgynous, and mixed cues all work; nightlife styling does not imply sexuality.",
+        "age": "Adults 25+ including middle-aged and older adults; no youth-coded wristbands or school cues.",
+        "pose_access": "Translate rhythm into standing, seated, prosthesis-visible, or mobility-aid-aware posing without spectacle."
+      },
+      "prompt_fragment": "Present the unchanged supplied garment on one original fictional adult model age 25+ in a small invented analog listening-room editorial. Use a restrained paused-dance full-body gesture or dynamic seated equivalent, acoustic panels, a blank speaker cabinet, low amber light, muted magenta bounce, neutral front fill, and a distinct non-famous face. Keep the mood social and self-possessed without sexual or intoxication cues.",
+      "avoid_list": [
+        "named music scenes, famous venues, performers, DJs, or album imagery",
+        "alcohol, drugs, cigarettes, intoxication, or unsafe crowd behavior",
+        "fetishwear, sexualized posing, voyeuristic angles, or consent ambiguity",
+        "neon cyberpunk treatment or colored light that hides garment color",
+        "club logos, wristbands, readable posters, or branded audio equipment",
+        "face resemblance to any real musician, model, or celebrity"
+      ]
+    },
+    {
+      "id": "sun-faded-minimalist",
+      "display_name": "Sun-Faded Minimalist",
+      "one_line_mood": "Dry daylight, open air, and an easy silhouette with nothing extra to prove.",
+      "wardrobe_context": "Spare warm-weather lookbook centered on the supplied garment, with only neutral unbranded essentials needed for a complete, non-revealing outfit.",
+      "pose": "Easy full-body stance into a light breeze, arms naturally separated from the torso; seated variation uses a broad low step and preserves the full silhouette.",
+      "setting": "An abstract pale wall and weathered mineral ground with no coastline, landmark, or identifiable region.",
+      "lighting": "High soft sun through thin haze, controlled highlights, open shadows, and accurate garment color.",
+      "casting_variation_guidance": {
+        "body": "All adult builds and statures suit the direction; ease comes from space and gesture rather than thinness.",
+        "skin": "Any skin tone with exposure chosen for real detail; never use tanning or lightening as a mood device.",
+        "presentation": "All presentation options fit; grooming stays natural and individually varied rather than regionally coded.",
+        "age": "Adults 25+ across the full age range, retaining natural skin and hair texture.",
+        "pose_access": "Make standing, seated, and mobility-aid-aware frames equally spacious and complete."
+      },
+      "prompt_fragment": "Present the unchanged supplied garment on one original fictional adult model age 25+ in a spare sun-faded outdoor editorial. Use an easy full-body stance or broad seated equivalent, an abstract pale wall, weathered mineral ground, a light breeze, high soft sun through haze, open shadows, faithful garment color, and a distinct non-famous face. Keep the location invented and the casting globally nonspecific.",
+      "avoid_list": [
+        "named coastlines, deserts, resorts, countries, or travel clichés",
+        "tanning, skin lightening, sun damage, or tone used as a mood prop",
+        "poverty coding, barefoot romanticization, or drifter stereotypes",
+        "swimwear sexualization or unnecessary exposed skin",
+        "overexposure that erases garment color, texture, or construction",
+        "face resemblance to any real model, traveler, or celebrity"
+      ]
+    }
+  ]
+}
