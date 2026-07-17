@@ -53,3 +53,5 @@ tmp/
 temp/
 *.log
 *.tmp
+.playwright-cli/
+output/playwright/
