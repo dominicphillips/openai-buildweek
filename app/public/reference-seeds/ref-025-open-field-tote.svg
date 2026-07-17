@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360"
+  role="img" aria-labelledby="title desc">
+  <title id="title">Open Field Tote</title>
+  <desc id="desc">Outline study of an open rectangular canvas tote. Project-authored outline study.</desc>
+  <rect width="480" height="360" fill="#0a0a09"/>
+  <path d="M24 52H456M24 316H456" fill="none" stroke="#3b3b38" stroke-width="1"/>
+  <g fill="none" stroke="#f1efe9" stroke-width="2.5"
+    stroke-linecap="round" stroke-linejoin="round">
+    <path d="M140 141H340L358 299H122Z"/>
+    <path d="M181 201V104Q240 68 299 104V201M181 141V299M299 141V299"
+      stroke="#85847f"/>
+    <path d="M206 213H274V267H206" stroke="#85847f"/>
+  </g>
+  <g fill="none" stroke="#969590" stroke-width="1" stroke-linecap="square">
+    <path d="M24 28H68M24 34H44"/>
+    <path d="M412 330H456M436 336H456"/>
+  </g>
+</svg>

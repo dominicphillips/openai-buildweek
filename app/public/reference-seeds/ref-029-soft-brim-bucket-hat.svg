@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360"
+  role="img" aria-labelledby="title desc">
+  <title id="title">Soft-Brim Bucket Hat</title>
+  <desc id="desc">Outline study of a soft bucket hat with a broad sloping brim. Project-authored outline study.</desc>
+  <rect width="480" height="360" fill="#0a0a09"/>
+  <path d="M24 52H456M24 316H456" fill="none" stroke="#3b3b38" stroke-width="1"/>
+  <g fill="none" stroke="#f1efe9" stroke-width="2.5"
+    stroke-linecap="round" stroke-linejoin="round">
+    <path d="M168 116Q240 78 312 116L334 225H146Z"/>
+    <path d="M146 213Q95 231 77 263 240 295 403 263 385 231 334 213"/>
+    <path d="M168 116Q240 142 312 116M102 251Q240 274 378 251M127 232Q240 255 353 232"
+      stroke="#85847f"/>
+  </g>
+  <g fill="none" stroke="#969590" stroke-width="1" stroke-linecap="square">
+    <path d="M24 28H68M24 34H44"/>
+    <path d="M412 330H456M436 336H456"/>
+  </g>
+</svg>

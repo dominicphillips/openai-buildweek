@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360"
+  role="img" aria-labelledby="title desc">
+  <title id="title">Five-Panel Cap</title>
+  <desc id="desc">Outline study of a low five-panel cap with a flat brim. Project-authored outline study.</desc>
+  <rect width="480" height="360" fill="#0a0a09"/>
+  <path d="M24 52H456M24 316H456" fill="none" stroke="#3b3b38" stroke-width="1"/>
+  <g fill="none" stroke="#f1efe9" stroke-width="2.5"
+    stroke-linecap="round" stroke-linejoin="round">
+    <path d="M127 224Q135 125 232 111 311 104 343 173L352 211
+      Q273 197 206 220 165 235 127 224Z"/>
+    <path d="M352 211Q403 207 420 231 351 244 286 230"/>
+    <path d="M232 111L240 203M167 135Q215 154 240 203M303 125Q267 158 240 203"
+      stroke="#85847f"/>
+  </g>
+  <g fill="none" stroke="#969590" stroke-width="1" stroke-linecap="square">
+    <path d="M24 28H68M24 34H44"/>
+    <path d="M412 330H456M436 336H456"/>
+  </g>
+</svg>

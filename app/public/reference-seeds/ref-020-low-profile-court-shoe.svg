@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360"
+  role="img" aria-labelledby="title desc">
+  <title id="title">Low-Profile Court Shoe</title>
+  <desc id="desc">Outline study of a minimal low-profile lace-up shoe. Project-authored outline study.</desc>
+  <rect width="480" height="360" fill="#0a0a09"/>
+  <path d="M24 52H456M24 316H456" fill="none" stroke="#3b3b38" stroke-width="1"/>
+  <g fill="none" stroke="#f1efe9" stroke-width="2.5"
+    stroke-linecap="round" stroke-linejoin="round">
+    <path d="M92 235Q137 213 176 163H273Q299 194 334 210L390 226
+      Q405 234 395 254H102Q83 251 92 235Z"/>
+    <path d="M98 238Q240 250 396 237M193 174L267 203M204 162L279 192"
+      stroke="#85847f"/>
+    <path d="M218 171L205 192M237 177L224 199M256 184L243 205" stroke="#85847f"/>
+  </g>
+  <g fill="none" stroke="#969590" stroke-width="1" stroke-linecap="square">
+    <path d="M24 28H68M24 34H44"/>
+    <path d="M412 330H456M436 336H456"/>
+  </g>
+</svg>

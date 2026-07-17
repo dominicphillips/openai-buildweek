@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360"
+  role="img" aria-labelledby="title desc">
+  <title id="title">Backless Step-In</title>
+  <desc id="desc">Outline study of a backless covered-toe step-in shoe. Project-authored outline study.</desc>
+  <rect width="480" height="360" fill="#0a0a09"/>
+  <path d="M24 52H456M24 316H456" fill="none" stroke="#3b3b38" stroke-width="1"/>
+  <g fill="none" stroke="#f1efe9" stroke-width="2.5"
+    stroke-linecap="round" stroke-linejoin="round">
+    <path d="M112 225Q158 207 191 163H287Q310 190 340 209L389 228
+      Q401 239 390 254H118Q99 248 112 225Z"/>
+    <path d="M191 163L179 218M105 237Q236 247 394 237M245 165Q260 196 293 211"
+      stroke="#85847f"/>
+  </g>
+  <g fill="none" stroke="#969590" stroke-width="1" stroke-linecap="square">
+    <path d="M24 28H68M24 34H44"/>
+    <path d="M412 330H456M436 336H456"/>
+  </g>
+</svg>

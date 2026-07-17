@@ -1,24 +1,101 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Ritual } from './components/Ritual'
 import { Studio } from './components/Studio'
 import { brands } from './data/brands'
-import type { ReferenceItem, RitualStage, StudioSeed } from './lib/types'
+import type { ReferenceCatalogItem, ReferenceItem, RitualStage, StudioSeed } from './lib/types'
 
-const firstStage: RitualStage = 'arrival'
+const sessionStorageKey = 'somethings-on:studio-session:v1'
+
+type StoredSession = {
+  completed: boolean
+  selectedBrandIds: string[]
+  objectName: string
+  references: ReferenceItem[]
+}
+
+const emptySession: StoredSession = {
+  completed: false,
+  selectedBrandIds: [],
+  objectName: 'white T-shirt',
+  references: [],
+}
+
+function loadSession(): StoredSession {
+  try {
+    const raw = window.localStorage.getItem(sessionStorageKey)
+    if (!raw) return emptySession
+    const stored = JSON.parse(raw) as Partial<StoredSession>
+    const knownBrandIds = new Set(brands.map((brand) => brand.id))
+    return {
+      completed: stored.completed === true,
+      selectedBrandIds: Array.isArray(stored.selectedBrandIds)
+        ? stored.selectedBrandIds.filter((id) => typeof id === 'string' && knownBrandIds.has(id)).slice(0, 5)
+        : [],
+      objectName:
+        typeof stored.objectName === 'string' && stored.objectName.trim()
+          ? stored.objectName.slice(0, 160)
+          : emptySession.objectName,
+      references: Array.isArray(stored.references)
+        ? stored.references.filter(
+            (reference): reference is ReferenceItem =>
+              typeof reference?.id === 'string' &&
+              (reference.kind === 'link' ||
+                reference.kind === 'catalog' ||
+                (reference.kind === 'image' && reference.previewUrl?.startsWith('/') === true)),
+          )
+        : [],
+    }
+  } catch {
+    return emptySession
+  }
+}
 
 function App() {
-  const [stage, setStage] = useState<RitualStage>(firstStage)
-  const [selectedBrandIds, setSelectedBrandIds] = useState<string[]>([])
-  const [objectName, setObjectName] = useState('white T-shirt')
-  const [references, setReferences] = useState<ReferenceItem[]>([])
+  const [initialSession] = useState(loadSession)
+  const [demoMode] = useState(
+    () => new URLSearchParams(window.location.search).get('demo') === 'devday',
+  )
+  const [stage, setStage] = useState<RitualStage>(
+    demoMode || initialSession.completed ? 'studio' : 'arrival',
+  )
+  const [selectedBrandIds, setSelectedBrandIds] = useState<string[]>(
+    demoMode ? ['john-elliott'] : initialSession.selectedBrandIds,
+  )
+  const [objectName, setObjectName] = useState(
+    demoMode ? 'DevDay distressed bomber + white T-shirt' : initialSession.objectName,
+  )
+  const [references, setReferences] = useState<ReferenceItem[]>(
+    demoMode ? [] : initialSession.references,
+  )
+
+  useEffect(() => {
+    if (stage !== 'studio') return
+    const persistentReferences = references.filter(
+      (reference) =>
+        reference.kind === 'link' ||
+        reference.kind === 'catalog' ||
+        reference.previewUrl?.startsWith('/'),
+    )
+    window.localStorage.setItem(
+      sessionStorageKey,
+      JSON.stringify({
+        completed: true,
+        selectedBrandIds,
+        objectName,
+        references: persistentReferences,
+      } satisfies StoredSession),
+    )
+  }, [objectName, references, selectedBrandIds, stage])
 
   const seed = useMemo<StudioSeed>(
     () => ({
+      projectId: demoMode ? 'devday-swag' : 'demo',
+      demoMode,
       selectedBrands: brands.filter((brand) => selectedBrandIds.includes(brand.id)),
       objectName: objectName.trim() || 'white T-shirt',
       references,
     }),
-    [objectName, references, selectedBrandIds],
+    [demoMode, objectName, references, selectedBrandIds],
   )
 
   const toggleBrand = (brandId: string) => {
@@ -42,6 +119,7 @@ function App() {
         kind: 'image',
         name: file.name,
         previewUrl: URL.createObjectURL(file),
+        file,
       }))
     setReferences((current) => [...current, ...next])
   }
@@ -60,6 +138,28 @@ function App() {
     ])
   }
 
+  const addCatalogReference = (item: ReferenceCatalogItem) => {
+    setReferences((current) => {
+      if (current.some((reference) => reference.id === item.id)) {
+        return current.filter((reference) => reference.id !== item.id)
+      }
+      if (current.length >= 3) return current
+      return [
+        ...current,
+        {
+          id: item.id,
+          kind: 'catalog',
+          name: item.title,
+          previewUrl: item.image_url,
+          source: 'local-reference-catalog',
+          labelId: item.metadata.label_association.id,
+          labelName: item.metadata.label_association.name,
+          tags: item.metadata.tags,
+        },
+      ]
+    })
+  }
+
   const removeReference = (referenceId: string) => {
     setReferences((current) => {
       const removed = current.find((reference) => reference.id === referenceId)
@@ -75,11 +175,15 @@ function App() {
     setReferences([])
     setSelectedBrandIds([])
     setObjectName('white T-shirt')
-    setStage(firstStage)
+    window.localStorage.setItem(
+      sessionStorageKey,
+      JSON.stringify({ ...emptySession, completed: true } satisfies StoredSession),
+    )
+    setStage('object')
   }
 
   if (stage === 'studio') {
-    return <Studio seed={seed} onReset={reset} />
+    return <Studio seed={seed} onReferencesChange={setReferences} onReset={reset} />
   }
 
   return (
@@ -94,6 +198,7 @@ function App() {
       references={references}
       addFiles={addFiles}
       addLink={addLink}
+      addCatalogReference={addCatalogReference}
       removeReference={removeReference}
     />
   )

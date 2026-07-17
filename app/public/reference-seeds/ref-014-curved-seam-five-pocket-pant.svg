@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360"
+  role="img" aria-labelledby="title desc">
+  <title id="title">Curved-Seam Five-Pocket Pant</title>
+  <desc id="desc">Outline study of a bowed five-pocket pant with curved seams. Project-authored outline study.</desc>
+  <rect width="480" height="360" fill="#0a0a09"/>
+  <path d="M24 52H456M24 316H456" fill="none" stroke="#3b3b38" stroke-width="1"/>
+  <g fill="none" stroke="#f1efe9" stroke-width="2.5"
+    stroke-linecap="round" stroke-linejoin="round">
+    <path d="M180 78H300L310 112Q325 205 291 312H247L240 165
+      233 312H189Q155 205 170 112Z"/>
+    <path d="M184 107Q155 197 203 299M296 107Q325 197 277 299" stroke="#85847f"/>
+    <path d="M184 111Q203 133 222 110M296 111Q277 133 258 110" stroke="#85847f"/>
+  </g>
+  <g fill="none" stroke="#969590" stroke-width="1" stroke-linecap="square">
+    <path d="M24 28H68M24 34H44"/>
+    <path d="M412 330H456M436 336H456"/>
+  </g>
+</svg>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360"
+  role="img" aria-labelledby="title desc">
+  <title id="title">Offset-Panel Trouser</title>
+  <desc id="desc">Outline study of a relaxed trouser with an offset front panel. Project-authored outline study.</desc>
+  <rect width="480" height="360" fill="#0a0a09"/>
+  <path d="M24 52H456M24 316H456" fill="none" stroke="#3b3b38" stroke-width="1"/>
+  <g fill="none" stroke="#f1efe9" stroke-width="2.5"
+    stroke-linecap="round" stroke-linejoin="round">
+    <path d="M176 78H304L310 114 292 312H247L240 160 233 312H188
+      L170 114Z"/>
+    <path d="M180 105L244 129 224 229 245 302M300 105L258 121 274 219 250 292"
+      stroke="#85847f"/>
+    <path d="M184 126L218 113M296 126L262 113" stroke="#85847f"/>
+  </g>
+  <g fill="none" stroke="#969590" stroke-width="1" stroke-linecap="square">
+    <path d="M24 28H68M24 34H44"/>
+    <path d="M412 330H456M436 336H456"/>
+  </g>
+</svg>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360"
+  role="img" aria-labelledby="title desc">
+  <title id="title">Padded High-Top</title>
+  <desc id="desc">Outline study of a padded high-top shoe with a broad sole. Project-authored outline study.</desc>
+  <rect width="480" height="360" fill="#0a0a09"/>
+  <path d="M24 52H456M24 316H456" fill="none" stroke="#3b3b38" stroke-width="1"/>
+  <g fill="none" stroke="#f1efe9" stroke-width="2.5"
+    stroke-linecap="round" stroke-linejoin="round">
+    <path d="M94 236Q138 215 178 174L188 100H276L293 183Q313 201 344 211
+      L397 229Q407 239 395 257H104Q85 252 94 236Z"/>
+    <path d="M188 108L273 177M188 139L284 198M102 240Q245 250 401 239"
+      stroke="#85847f"/>
+    <path d="M216 127L204 150M237 144L225 168M258 161L246 185" stroke="#85847f"/>
+  </g>
+  <g fill="none" stroke="#969590" stroke-width="1" stroke-linecap="square">
+    <path d="M24 28H68M24 34H44"/>
+    <path d="M412 330H456M436 336H456"/>
+  </g>
+</svg>

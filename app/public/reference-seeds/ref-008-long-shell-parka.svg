@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360"
+  role="img" aria-labelledby="title desc">
+  <title id="title">Long Shell Parka</title>
+  <desc id="desc">Outline study of a long hooded shell parka. Project-authored outline study.</desc>
+  <rect width="480" height="360" fill="#0a0a09"/>
+  <path d="M24 52H456M24 316H456" fill="none" stroke="#3b3b38" stroke-width="1"/>
+  <g fill="none" stroke="#f1efe9" stroke-width="2.5"
+    stroke-linecap="round" stroke-linejoin="round">
+    <path d="M202 101Q204 67 240 66Q276 67 278 101L310 116 350 161
+      319 194 306 174V315H174V174L161 194 130 161 170 116Z"/>
+    <path d="M202 101Q240 124 278 101M240 118V314M176 214H304" stroke="#85847f"/>
+    <path d="M190 176L218 192 200 235M290 176L262 192 280 235" stroke="#85847f"/>
+  </g>
+  <g fill="none" stroke="#969590" stroke-width="1" stroke-linecap="square">
+    <path d="M24 28H68M24 34H44"/>
+    <path d="M412 330H456M436 336H456"/>
+  </g>
+</svg>

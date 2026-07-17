@@ -2,6 +2,7 @@ import { ChatKit, useChatKit } from '@openai/chatkit-react'
 import { useCallback, useEffect, useState } from 'react'
 
 type ChatDockProps = {
+  projectId: string
   objectName: string
   referenceCount: number
   onProjectRefresh: () => void
@@ -9,8 +10,9 @@ type ChatDockProps = {
 
 type AgentStatus = 'checking' | 'online' | 'offline'
 
-export function ChatDock({ objectName, referenceCount, onProjectRefresh }: ChatDockProps) {
+export function ChatDock({ projectId, objectName, referenceCount, onProjectRefresh }: ChatDockProps) {
   const [status, setStatus] = useState<AgentStatus>('checking')
+  const [domainKey, setDomainKey] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
   const [responding, setResponding] = useState(false)
 
@@ -19,7 +21,11 @@ export function ChatDock({ objectName, referenceCount, onProjectRefresh }: ChatD
     try {
       const response = await fetch('/api/health', { headers: { Accept: 'application/json' } })
       if (!response.ok) throw new Error('Backend is unavailable')
-      const body = (await response.json()) as { chatkit_ready?: boolean }
+      const body = (await response.json()) as {
+        chatkit_ready?: boolean
+        chatkit_domain_key?: string | null
+      }
+      setDomainKey(body.chatkit_domain_key ?? '')
       setStatus(body.chatkit_ready ? 'online' : 'offline')
     } catch {
       setStatus('offline')
@@ -32,8 +38,8 @@ export function ChatDock({ objectName, referenceCount, onProjectRefresh }: ChatD
 
   const { control } = useChatKit({
     api: {
-      url: '/api/projects/demo/chatkit',
-      domainKey: 'local-dev',
+      url: `/api/projects/${projectId}/chatkit`,
+      domainKey: domainKey || 'not-configured',
     },
     theme: 'dark',
     frameTitle: 'SOMETHINGS-ON design conversation',
@@ -84,7 +90,7 @@ export function ChatDock({ objectName, referenceCount, onProjectRefresh }: ChatD
           <div className="agent-setup-card">
             <span>AGENT CONNECTION</span>
             <p>
-              The visual studio is ready. Start the FastAPI service on port 43174 to bring the ChatKit conversation online.
+              The local design service is connected. Add a ChatKit domain key to mount the hosted conversation surface; this fallback keeps the studio usable meanwhile.
             </p>
             <button type="button" onClick={() => void checkBackend()}>
               Check again ↗

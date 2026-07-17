@@ -1,4 +1,6 @@
 import type { Brand } from '../lib/types'
+import ibKamaraPortrait from '../../../__grounding/brands/off-white/sourced/portraits/ib-kamara-2024.jpg'
+import demnaPortrait from '../../../__grounding/brands/vetements/sourced/portraits/demna-gvasalia-2022.jpg'
 
 export const brands: Brand[] = [
   {
@@ -6,30 +8,56 @@ export const brands: Brand[] = [
     name: 'VETEMENTS',
     tags: ['amplified volume', 'subversion', 'reconstructed basics'],
     seed: true,
+    designer: {
+      name: 'Demna',
+      role: 'archive design signal',
+      avatarUrl: demnaPortrait,
+      avatarAlt: 'Archival portrait of designer Demna',
+      avatarCredit: 'Presidential Administration of Ukraine / CC BY 4.0',
+    },
   },
   {
     id: 'john-elliott',
     name: 'JOHN ELLIOTT',
     tags: ['refined essentials', 'fabric focus', 'layered neutrals'],
     seed: true,
+    designer: {
+      name: 'John Elliott',
+      role: 'founder / design lead',
+    },
   },
   {
     id: 'represent',
     name: 'REPRESENT',
     tags: ['washed finishes', 'graphic staples', 'relaxed proportions'],
     seed: true,
+    designer: {
+      name: 'George + Michael Heaton',
+      role: 'founders / creative leads',
+    },
   },
   {
     id: 'acne-studios',
     name: 'ACNE STUDIOS',
     tags: ['offbeat proportion', 'denim', 'art-school color'],
     seed: true,
+    designer: {
+      name: 'Jonny Johansson',
+      role: 'co-founder / creative director',
+    },
   },
   {
     id: 'off-white',
     name: 'OFF-WHITE',
     tags: ['industrial graphics', 'high-low mix', 'visible construction'],
     seed: true,
+    designer: {
+      name: 'IB Kamara',
+      role: 'art + image director',
+      avatarUrl: ibKamaraPortrait,
+      avatarAlt: 'Self-portrait of designer IB Kamara',
+      avatarCredit: 'TomosWalesLondon / Kamara self-portrait / CC BY-SA 4.0',
+    },
   },
   {
     id: 'balenciaga',

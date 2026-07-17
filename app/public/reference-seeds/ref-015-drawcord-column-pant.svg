@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360"
+  role="img" aria-labelledby="title desc">
+  <title id="title">Drawcord Column Pant</title>
+  <desc id="desc">Outline study of a straight pull-on pant with drawcord waist. Project-authored outline study.</desc>
+  <rect width="480" height="360" fill="#0a0a09"/>
+  <path d="M24 52H456M24 316H456" fill="none" stroke="#3b3b38" stroke-width="1"/>
+  <g fill="none" stroke="#f1efe9" stroke-width="2.5"
+    stroke-linecap="round" stroke-linejoin="round">
+    <path d="M178 84Q240 70 302 84L308 116 292 312H247L240 158
+      233 312H188L172 116Z"/>
+    <path d="M183 99H297M225 84Q240 103 255 84M233 84L225 124M247 84L255 124"
+      stroke="#85847f"/>
+    <path d="M177 118Q240 130 303 118" stroke="#85847f"/>
+  </g>
+  <g fill="none" stroke="#969590" stroke-width="1" stroke-linecap="square">
+    <path d="M24 28H68M24 34H44"/>
+    <path d="M412 330H456M436 336H456"/>
+  </g>
+</svg>

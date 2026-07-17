@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360"
+  role="img" aria-labelledby="title desc">
+  <title id="title">Grid-Stitch Liner</title>
+  <desc id="desc">Outline study of a collarless grid-quilted liner jacket. Project-authored outline study.</desc>
+  <rect width="480" height="360" fill="#0a0a09"/>
+  <path d="M24 52H456M24 316H456" fill="none" stroke="#3b3b38" stroke-width="1"/>
+  <g fill="none" stroke="#f1efe9" stroke-width="2.5"
+    stroke-linecap="round" stroke-linejoin="round">
+    <path d="M202 91L170 103 121 144 151 190 174 175V300
+      Q240 314 306 300V175L329 190 359 144 310 103 278 91Z"/>
+    <path d="M220 93Q240 117 260 93M240 117V306" stroke="#85847f"/>
+    <path d="M175 152H305M175 190H305M175 228H305M175 266H305
+      M207 102V306M273 102V306" stroke="#5f5f5b" stroke-width="1.5"/>
+  </g>
+  <g fill="none" stroke="#969590" stroke-width="1" stroke-linecap="square">
+    <path d="M24 28H68M24 34H44"/>
+    <path d="M412 330H456M436 336H456"/>
+  </g>
+</svg>

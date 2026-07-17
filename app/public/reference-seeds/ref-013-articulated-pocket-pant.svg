@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360"
+  role="img" aria-labelledby="title desc">
+  <title id="title">Articulated Pocket Pant</title>
+  <desc id="desc">Outline study of a tapered utility pant with articulated knees. Project-authored outline study.</desc>
+  <rect width="480" height="360" fill="#0a0a09"/>
+  <path d="M24 52H456M24 316H456" fill="none" stroke="#3b3b38" stroke-width="1"/>
+  <g fill="none" stroke="#f1efe9" stroke-width="2.5"
+    stroke-linecap="round" stroke-linejoin="round">
+    <path d="M178 78H302L312 115 292 312H248L240 164 232 312H188
+      L168 115Z"/>
+    <path d="M177 181H222V237H180M303 181H258V237H300" stroke="#85847f"/>
+    <path d="M184 243L226 261M296 243L254 261M180 299H231M249 299H300"
+      stroke="#85847f"/>
+  </g>
+  <g fill="none" stroke="#969590" stroke-width="1" stroke-linecap="square">
+    <path d="M24 28H68M24 34H44"/>
+    <path d="M412 330H456M436 336H456"/>
+  </g>
+</svg>

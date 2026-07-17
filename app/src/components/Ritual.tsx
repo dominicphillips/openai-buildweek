@@ -1,6 +1,10 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import type { Brand, ReferenceItem, RitualStage } from '../lib/types'
+import type { Brand, ReferenceCatalogItem, ReferenceItem, RitualStage } from '../lib/types'
+import { EvidenceCatalog } from './EvidenceCatalog'
+import { PantsIcon, ShoeIcon, TShirtIcon } from './icons'
+import { LiveGarmentIllustration } from './illustrations'
+import { ScrollArea } from './ui/ScrollArea'
 
 type RitualProps = {
   stage: RitualStage
@@ -13,6 +17,7 @@ type RitualProps = {
   references: ReferenceItem[]
   addFiles: (files: FileList | null) => void
   addLink: (url: string) => void
+  addCatalogReference: (item: ReferenceCatalogItem) => void
   removeReference: (referenceId: string) => void
 }
 
@@ -39,6 +44,12 @@ const stageLabels: Record<RitualStage, string> = {
   studio: 'Studio',
 }
 
+const objectPresets = [
+  { label: 'T-shirt', value: 'white T-shirt', Icon: TShirtIcon },
+  { label: 'Pants', value: 'pair of pants', Icon: PantsIcon },
+  { label: 'Shoes', value: 'pair of shoes', Icon: ShoeIcon },
+]
+
 function Arrow() {
   return <span aria-hidden="true">↗</span>
 }
@@ -54,6 +65,7 @@ export function Ritual({
   references,
   addFiles,
   addLink,
+  addCatalogReference,
   removeReference,
 }: RitualProps) {
   const reduceMotion = useReducedMotion()
@@ -74,6 +86,11 @@ export function Ritual({
   useEffect(() => {
     if (remaining === 0) setTimerRunning(false)
   }, [remaining])
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'auto' })
+    document.querySelector<HTMLElement>('.ritual-stage')?.scrollTo({ top: 0, behavior: 'auto' })
+  }, [stage])
 
   const filteredBrands = useMemo(() => {
     const query = brandQuery.trim().toLowerCase()
@@ -181,15 +198,17 @@ export function Ritual({
 
           {stage === 'sound' && (
             <div className="centered-copy">
-              <p className="eyebrow">Before the first decision</p>
-              <h1>Put on something you love.</h1>
-              <p className="stage-body">We’ll wait. Silence works too.</p>
+              <p className="eyebrow">Set the room</p>
+              <h1>Choose the sound.</h1>
+              <p className="stage-body">
+                Play one track that gets you working. Or keep it quiet.
+              </p>
               <div className="action-row action-row--center">
                 <button className="primary-action" type="button" onClick={() => setStage('breath')}>
-                  I’m ready <Arrow />
+                  Sound is on <Arrow />
                 </button>
                 <button className="text-action" type="button" onClick={() => setStage('breath')}>
-                  Continue in silence
+                  Keep it quiet
                 </button>
               </div>
             </div>
@@ -244,7 +263,7 @@ export function Ritual({
                 Start with one detail that keeps your attention. We’ll follow it from there.
               </p>
               <button className="primary-action" type="button" onClick={() => setStage('brands')}>
-                Let’s look <Arrow />
+                Choose labels <Arrow />
               </button>
             </div>
           )}
@@ -272,27 +291,47 @@ export function Ritual({
                 />
               </label>
 
-              <div className="brand-grid">
-                {filteredBrands.map((brand, index) => {
-                  const selected = selectedBrandIds.includes(brand.id)
-                  return (
-                    <button
-                      type="button"
-                      className={`brand-card ${selected ? 'is-selected' : ''}`}
-                      key={brand.id}
-                      onClick={() => toggleBrand(brand.id)}
-                      aria-pressed={selected}
-                    >
-                      <span className="brand-number">{String(index + 1).padStart(2, '0')}</span>
-                      <strong>{brand.name}</strong>
-                      <span className="brand-tags">{brand.tags.slice(0, 2).join(' · ')}</span>
-                      <span className="brand-mark" aria-hidden="true">
-                        {selected ? '×' : '+'}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
+              <ScrollArea className="brand-scroll" type="always" scrollHideDelay={0}>
+                <div className="brand-grid">
+                  {filteredBrands.map((brand, index) => {
+                    const selected = selectedBrandIds.includes(brand.id)
+                    return (
+                      <button
+                        type="button"
+                        className={`brand-card ${selected ? 'is-selected' : ''}`}
+                        key={brand.id}
+                        onClick={() => toggleBrand(brand.id)}
+                        aria-pressed={selected}
+                      >
+                        <span className="brand-number">{String(index + 1).padStart(2, '0')}</span>
+                        <span className="brand-identity">
+                          <span className={`brand-avatar ${brand.designer?.avatarUrl ? 'has-image' : ''}`}>
+                            {brand.designer?.avatarUrl ? (
+                              <img src={brand.designer.avatarUrl} alt={brand.designer.avatarAlt ?? ''} />
+                            ) : (
+                              <svg viewBox="0 0 64 76" role="img" aria-label={`Abstract portrait placeholder for ${brand.designer?.name ?? brand.name}`}>
+                                <circle cx="32" cy="24" r="14" />
+                                <path d="M10 72c2-22 10-34 22-34s20 12 22 34" />
+                                <path d="M5 18h54M5 28h54M5 38h54M5 48h54M5 58h54" />
+                              </svg>
+                            )}
+                          </span>
+                          <span>
+                            <strong>{brand.name}</strong>
+                            <small title={brand.designer?.avatarCredit}>
+                              {brand.designer?.name ?? 'Identity study pending'}
+                            </small>
+                          </span>
+                        </span>
+                        <span className="brand-tags">{brand.tags.slice(0, 2).join(' · ')}</span>
+                        <span className="brand-mark" aria-hidden="true">
+                          {selected ? '×' : '+'}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </ScrollArea>
 
               <div className="wide-actions">
                 <button
@@ -315,104 +354,134 @@ export function Ritual({
               <div className="stage-heading">
                 <p className="eyebrow">Make it concrete</p>
                 <h1>What are we making first?</h1>
-                <p className="stage-body">A white tee. A cropped jacket. A bag.</p>
+                <p className="stage-body">Choose one object. The collection can come later.</p>
               </div>
-              <label className="object-field">
-                <span>Object / 001</span>
-                <input
-                  autoFocus
-                  value={objectName}
-                  onChange={(event) => setObjectName(event.target.value)}
-                  placeholder="e.g. a white T-shirt"
-                />
-              </label>
-              <div className="action-row">
-                <button
-                  className="primary-action"
-                  type="button"
-                  onClick={() => setStage('references')}
-                  disabled={!objectName.trim()}
-                >
-                  Set the object <Arrow />
-                </button>
-                <button
-                  className="text-action"
-                  type="button"
-                  onClick={() => {
-                    setObjectName('white T-shirt')
-                    setStage('references')
-                  }}
-                >
-                  Start with a white tee
-                </button>
+              <div className="object-workbench">
+                <label className="object-field">
+                  <span>Object / 001</span>
+                  <input
+                    autoFocus
+                    value={objectName}
+                    onChange={(event) => setObjectName(event.target.value)}
+                    placeholder="e.g. a white T-shirt"
+                  />
+                </label>
+
+                <div className="object-presets" aria-label="Common garment starting points">
+                  {objectPresets.map(({ label, value, Icon }) => (
+                    <button
+                      type="button"
+                      key={value}
+                      className={objectName === value ? 'is-selected' : ''}
+                      aria-pressed={objectName === value}
+                      onClick={() => setObjectName(value)}
+                    >
+                      <Icon title={`${label} outline`} />
+                      <span>{label}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="action-row">
+                  <button
+                    className="primary-action"
+                    type="button"
+                    onClick={() => setStage('references')}
+                    disabled={!objectName.trim()}
+                  >
+                    Set the object <Arrow />
+                  </button>
+                  <button
+                    className="text-action"
+                    type="button"
+                    onClick={() => {
+                      setObjectName('white T-shirt')
+                      setStage('references')
+                    }}
+                  >
+                    Start with a white tee
+                  </button>
+                </div>
               </div>
             </div>
           )}
 
           {stage === 'references' && (
             <div className="reference-layout">
-              <div className="stage-heading">
+              <div className="stage-heading reference-heading">
                 <p className="eyebrow">Evidence before adjectives</p>
                 <h1>Show us what you mean.</h1>
                 <p className="stage-body">
-                  Add screenshots, camera-roll photos, or a link with a detail worth keeping. One is enough.
+                  Pull from thirty local studies, or add your own image. Keep up to three details worth carrying forward.
                 </p>
               </div>
 
-              <div className="reference-workbench">
-                <label className="drop-zone">
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp"
-                    multiple
-                    onChange={(event) => addFiles(event.target.files)}
-                    disabled={references.length >= 3}
-                  />
-                  <span className="drop-plus" aria-hidden="true">+</span>
-                  <strong>Drop files or choose images</strong>
-                  <small>PNG, JPEG, WEBP · up to 3</small>
-                </label>
+              <div className="evidence-workspace">
+                <EvidenceCatalog
+                  selectedIds={references.map((reference) => reference.id)}
+                  selectionCount={references.length}
+                  onToggle={addCatalogReference}
+                />
 
-                <form className="link-form" onSubmit={addReferenceLink}>
-                  <label htmlFor="reference-url">Or save a link card</label>
-                  <div>
+                <aside className="reference-workbench">
+                  <header>
+                    <span>ADD YOUR OWN</span>
+                    <p>Screenshots, camera-roll photos, or one useful link.</p>
+                  </header>
+                  <label className="drop-zone">
                     <input
-                      id="reference-url"
-                      type="url"
-                      value={linkValue}
-                      onChange={(event) => setLinkValue(event.target.value)}
-                      placeholder="https://…"
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      multiple
+                      onChange={(event) => addFiles(event.target.files)}
                       disabled={references.length >= 3}
                     />
-                    <button type="submit" disabled={!linkValue || references.length >= 3}>
-                      Add
-                    </button>
-                  </div>
-                  {linkError && <p role="alert">{linkError}</p>}
-                  <small>Links are saved, not fetched, in this prototype.</small>
-                </form>
-              </div>
+                    <span className="drop-plus" aria-hidden="true">+</span>
+                    <strong>Drop files or choose images</strong>
+                    <small>PNG, JPEG, WEBP · up to 3 total</small>
+                  </label>
 
-              {references.length > 0 && (
-                <div className="reference-strip" aria-label="Selected references">
-                  {references.map((reference, index) => (
-                    <article key={reference.id} className="reference-chip">
-                      {reference.previewUrl ? (
-                        <img src={reference.previewUrl} alt="" />
-                      ) : (
-                        <span className="link-preview" aria-hidden="true">↗</span>
-                      )}
-                      <div>
-                        <small>REF / {String(index + 1).padStart(2, '0')}</small>
-                        <strong>{reference.name}</strong>
-                      </div>
-                      <button type="button" onClick={() => removeReference(reference.id)} aria-label={`Remove ${reference.name}`}>
-                        ×
+                  <form className="link-form" onSubmit={addReferenceLink}>
+                    <label htmlFor="reference-url">Save a link card</label>
+                    <div>
+                      <input
+                        id="reference-url"
+                        type="url"
+                        value={linkValue}
+                        onChange={(event) => setLinkValue(event.target.value)}
+                        placeholder="https://…"
+                        disabled={references.length >= 3}
+                      />
+                      <button type="submit" disabled={!linkValue || references.length >= 3}>
+                        Add
                       </button>
-                    </article>
-                  ))}
-                </div>
-              )}
+                    </div>
+                    {linkError && <p role="alert">{linkError}</p>}
+                    <small>Saved as a source card; not fetched automatically.</small>
+                  </form>
+
+                  {references.length > 0 && (
+                    <div className="reference-strip" aria-label="Selected references">
+                      {references.map((reference, index) => (
+                        <article key={reference.id} className="reference-chip">
+                          {reference.previewUrl ? (
+                            <img src={reference.previewUrl} alt="" />
+                          ) : (
+                            <span className="link-preview" aria-hidden="true">↗</span>
+                          )}
+                          <div>
+                            <small>REF / {String(index + 1).padStart(2, '0')}</small>
+                            <strong>{reference.name}</strong>
+                          </div>
+                          <button type="button" onClick={() => removeReference(reference.id)} aria-label={`Remove ${reference.name}`}>
+                            ×
+                          </button>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </aside>
+              </div>
 
               <div className="wide-actions">
                 <button className="primary-action" type="button" onClick={() => setStage('threshold')}>
@@ -429,18 +498,24 @@ export function Ritual({
 
           {stage === 'threshold' && (
             <div className="threshold-layout">
-              <p className="eyebrow">Your starting point</p>
-              <h1>
-                Keep what matters.
-                <br />
-                <span>Change one thing.</span>
-              </h1>
-              <p className="stage-body">
-                The object stays centered. Use the conversation on the left while your references gather around it.
-              </p>
-              <button className="primary-action" type="button" onClick={() => setStage('studio')}>
-                Open the studio <Arrow />
-              </button>
+              <div className="threshold-copy">
+                <p className="eyebrow">Your starting point</p>
+                <h1>
+                  Keep what matters.
+                  <br />
+                  <span>Change one thing.</span>
+                </h1>
+                <p className="stage-body">
+                  The object stays centered. Use the conversation on the left while your references gather around it.
+                </p>
+                <button className="primary-action" type="button" onClick={() => setStage('studio')}>
+                  Open the studio <Arrow />
+                </button>
+              </div>
+              <div className="threshold-illustration">
+                <LiveGarmentIllustration label="Animated outline studies of a T-shirt, pants, and shoe" />
+                <span>LIVE STUDY / REACT + SVG</span>
+              </div>
             </div>
           )}
         </motion.section>

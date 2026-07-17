@@ -1,0 +1,4 @@
+export { PantsIcon } from './PantsIcon'
+export { ShoeIcon } from './ShoeIcon'
+export { TShirtIcon } from './TShirtIcon'
+export type { GarmentIconProps } from './GarmentIconFrame'
