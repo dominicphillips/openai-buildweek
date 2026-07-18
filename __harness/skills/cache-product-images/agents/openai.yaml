@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cache Product Images"
+  short_description: "Build and verify the local product image cache"
+  default_prompt: "Use $cache-product-images to build and verify the 600-product local inspiration image cache."

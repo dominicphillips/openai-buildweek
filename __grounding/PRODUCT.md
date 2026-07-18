@@ -21,7 +21,7 @@ Bring what catches your eye. SOMETHINGS-ON helps you understand why it matters a
 1. **Arrive** — a nearly black screen slows the pace and asks for one deliberate start.
 2. **Set the room** — music and a 30-second pause are offered, never required or autoplayed.
 3. **Locate taste** — select a few labels as hypotheses, then confirm or reject the traits inferred from them.
-4. **Name the object** — choose one concrete first object, such as a white T-shirt.
+4. **Name the object** — choose one durable garment category, such as a T-shirt. Color belongs to the active version.
 5. **Gather evidence** — add screenshots, URLs, phone photos, or other references; one is enough.
 6. **Open the studio** — references land as a starter pile around one centered object. Chat remains on the left.
 7. **Make a change** — choose one quality to carry forward and one variable to alter.
@@ -48,7 +48,7 @@ The hackathon slice proves one continuous flow:
 
 - complete or skip the opening ritual;
 - choose 3–5 labels from the initial catalog;
-- name a white T-shirt or another object;
+- name `T-shirt` or another durable garment category, then record white or another color on the active version;
 - add 1–3 local image references; pasted URLs may be saved as link cards but are not fetched server-side in the first slice;
 - arrive in a workspace with chat left, object centered, and references arranged around it;
 - ask the agent to analyze selected references;

@@ -63,7 +63,7 @@ Only `prompt_fragment` enters the image prompt. `display_name` is chooser copy a
 
 ## Casting controls
 
-Expose the controls under `Vary the casting`; leave them collapsed until the designer wants them. `Varied` is the default for every dimension.
+Expose the controls under `Adjust editorial`; leave them collapsed until the designer wants them. `Varied` is the default for every dimension.
 
 - **Body build** — varied, lean, straight, soft, muscular, broad, or full. This describes a generated adult body's visible build, never health, worth, or garment size.
 - **Stature** — varied, short, medium, or tall. Do not make height a proxy for body build.
@@ -93,23 +93,20 @@ If a designer enters a celebrity, brand, nationality stereotype, or exact-campai
 
 Chooser entry:
 
-- Action: `Style it on a model`
-- Eyebrow: `CASTING DIRECTION`
-- Heading: `Choose a point of view, not a person.`
-- Body: `These fictional editorial setups change the pose, place, and light. Your design stays untouched.`
-- Helper: `Preset names describe the image treatment—not anyone's nationality, identity, job, or personality.`
-- Controls label: `Vary the casting`
-- Controls helper: `Body, skin tone, age, and presentation move independently. Leave any field open for a new adult fictional model.`
-- Policy note: `Adults only. No real-person lookalikes, celebrities, brands, or borrowed campaigns.`
-- Primary action: `Make a lookbook view`
+- Action: `Editorial`
+- Eyebrow: `EDITORIAL`
+- Heading: `See it worn.`
+- Body: `Choose the wearer, stance, setting, and light. The garment itself won't change.`
+- Controls label: `Adjust editorial`
+- Primary action: `Make editorial view`
 
 Render state:
 
 - Link label: `Presentation of {version}`
 - Invariant badge: `DESIGN UNCHANGED`
-- Retry action: `Try another casting`
-- Navigation action: `Back to the design`
-- Drift error: `The garment changed in this render, so we didn't save it. Try again with fewer presentation changes.`
-- Failure: `That lookbook view didn't finish. Your design is safe.`
+- Retry action: `Try another direction`
+- Navigation action: `Back to design`
+- Drift error: `The garment changed, so this view was not saved. Try a simpler editorial direction.`
+- Failure: `That editorial view did not finish. The current version has not changed.`
 
 The UI should show the linked version beside every presentation asset and never put a presentation render in the design-version stack.

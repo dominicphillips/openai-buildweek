@@ -6,11 +6,12 @@ Each skill is self-contained under `skills/<name>/` and contains only its concis
 
 | Skill | Purpose | Runtime setting |
 | --- | --- | --- |
-| `create-image` | Generate or edit raster assets with OpenAI `gpt-image-2`, including reference-conditioned garment studies and clearly labeled editorial avatars. | `OPENAI_API_KEY` |
+| `create-image` | Generate or edit raster assets with `gpt-image-2`, including reference-conditioned garment studies and clearly labeled editorial avatars. | `OPENAI_API_KEY` |
 | `create-music` | Render an original track with Replicate `google/lyria-3-pro` after inspecting a cost-free dry run. | `REPLICATE_API_TOKEN` |
 | `ask-gemini` | Send a focused question and explicit files to Gemini for an independent, verifiable second opinion. | `GEMINI_API_KEY` or supported ambient Google credentials |
 | `ask-claude` | Run a read-only Claude CLI review of a repository or architecture decision. | authenticated `claude` CLI |
 | `copywriter` | Draft grounded UX, product, editorial, marketing, or technical copy through the OpenAI Responses API. | `OPENAI_API_KEY` |
+| `cache-product-images` | Build, resume, and verify the ignored 600-product local Inspiration image cache. | network access to build; none to verify |
 
 ## Usage contract
 

@@ -37,6 +37,7 @@ htmlcov/
 *.sqlite
 *.sqlite3
 backend/data/
+data/
 backend/uploads/
 backend/generated/
 __harness/output/

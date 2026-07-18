@@ -42,9 +42,11 @@ Good parallel work includes research, UX copy, architecture review, isolated com
 ## Preview and release loop
 
 - Keep the backend on strict port `43174` and the Vite development or production-style preview on strict port `43173` while visual work is in progress. Rebuild the production bundle before judging a source change through `vite preview`.
-- Use `http://127.0.0.1:43173/?demo=devday` for the canonical deterministic story. Exercise all three looks, the Inspiration and Model panels, direct canvas drag, 35–400% zoom, tilt, reset, and every right-click tool before calling the demo ready.
+- Use Playwright against the running production-style preview to verify every browser-visible change. Exercise the real interaction path, inspect browser console and failed network requests, and visually review screenshots at the target viewport; a type check or successful render alone is not UI verification.
+- Use `http://127.0.0.1:43173/?demo=devday` for the canonical DevDay story. Exercise the imported direct-OpenAI V1–V3 lineage, at least one live ChatKit image edit, the Inspiration and Editorial panels, direct canvas drag, 35–400% zoom, tilt, reset, and every right-click tool before calling the demo ready.
+- Before Inspiration QA, run `uv run python scripts/cache_product_images.py` from `backend/` and verify it with `--verify`. Product imagery must load from the same-origin cache route; do not silently fall back to browser hotlinks.
 - Verify a clean browser session separately from the returning-designer path. Completing onboarding must reopen the studio after reload; `New object` returns to object selection without replaying the optional ritual.
-- Treat deterministic demo fixtures as fixtures. They may prove visual and state behavior without spending credits, but never claim they prove a live ChatKit or image-provider call.
+- Test fixtures may prove visual and state behavior without spending credits, but they never count as DevDay design output and never prove a live ChatKit or image-provider call. The canonical DevDay run uses assets returned by real `gpt-image-2` API calls; if generation is unavailable, show and report that failure instead of substituting an illustration.
 - Inspect screenshots at representative desktop sizes and at least one narrow onboarding size. Check spacing, clipping, focus, contrast, reduced motion, and the 16px text floor—not only whether the route renders.
 
 ## Git discipline
@@ -76,11 +78,13 @@ Good parallel work includes research, UX copy, architecture review, isolated com
 ## Frontend contract
 
 - Location: `app/`
-- Stack: Vite, React, TypeScript, Tailwind CSS v4, and Motion. Bespoke composition is the default. Selectively copy a small shadcn-style primitive when its behavior materially helps—currently the local Radix `ScrollArea`—and keep it visually owned by this product; do not import a generic component system or theme.
+- Stack: Vite, React, TypeScript, Tailwind CSS v4, and Motion. Bespoke composition is the default. Selectively copy a small shadcn-style primitive when its behavior materially helps—currently the local Radix `ScrollArea` and `Select`—and keep it visually owned by this product; do not import a generic component system or theme.
 - Preview URL: `http://127.0.0.1:43173` with a strict port.
 - The interface is dark by default, typographic, tactile, and editorial. Prefer custom components and intentional composition over dashboard patterns.
 - Support keyboard navigation, visible focus, semantic controls, sufficient contrast, reduced motion, and an immediate route past optional music/breathing rituals.
 - Product text starts at `1rem` / 16px. Do not shrink metadata, captions, SVG labels, controls, or responsive layouts below the base size; make more space or remove secondary copy instead.
+- Action-button labels stay on one line. Give them enough width or shorten the label; never stack a close mark, shortcut, count, or arrow beneath the action.
+- Every visible tag, eyebrow, badge, count, and status must help the designer decide, compare, or act. Do not surface implementation terms, model/provider names, compliance reassurance, provenance boilerplate, or decorative taxonomy in the interface.
 - Persist onboarding completion and the last safe project seed locally. A returning designer reopens the studio; only an explicit replay should restart the optional ritual.
 - The workspace keeps chat on the left and the current design centered. References collect around the design as movable piles on an expansive canvas.
 - The canvas must support pointer and keyboard pan, pointer-anchored zoom from 35–400%, restrained tilt, reset/fit, and an in-bounds right-click tool menu. Every displayed tool must produce an observable result.
@@ -89,9 +93,11 @@ Good parallel work includes research, UX copy, architecture review, isolated com
 
 “Live illustration” means an original React component—normally SVG composed with Motion—that acts as editorial artwork while responding to product state. It is not a static decorative screenshot and not a disguised third-party icon.
 
+Live illustrations are interface art, not garment truth. They must never occupy a `DesignVersion` or `PresentationRender`, masquerade as an Images API result, or appear as a successful DevDay draft. When an offline or non-production illustration is shown near the studio, label it plainly as `ILLUSTRATION / NON-PRODUCTION`; it cannot satisfy an image-generation request.
+
 - Build reusable scenes from the project iconography in `app/src/components/icons/` and follow `__grounding/ICONOGRAPHY.md`.
 - Keep geometry, silhouettes, and motion original; never trace a branded garment, campaign, photograph, or signature product.
-- Let state changes alter the illustration when that explains the product: garment version, selection, progress, material, or construction.
+- Let state changes alter an illustration only to explain interaction or vocabulary—selection, progress, material, or construction—not to render or replace a design version.
 - Honor `prefers-reduced-motion`; the still composition must remain complete and intentional.
 - Decorative scenes are hidden from assistive technology. Informative scenes accept a concise accessible label.
 - Do not embed microcopy below the 16px product floor inside SVGs. Put necessary copy in semantic HTML beside the illustration.
@@ -103,14 +109,18 @@ Good parallel work includes research, UX copy, architecture review, isolated com
 - API URL: `http://127.0.0.1:43174` with a strict port.
 - Start with one fashion design agent and narrow function tools. Add specialists only after the single-agent flow demonstrates a real need.
 - Use `gpt-5.6` for the guided agent and `gpt-image-2` for direct image generation/editing unless current official guidance or evals justify a change.
-- Image edits use the current design and explicit reference images. Store generated artifacts outside Git and return metadata sufficient to place a new version on the canvas.
+- Create the first canonical design raster with a real `gpt-image-2` generation call. Every later garment change must call the Images API edit path with the exact current immutable raster as its canonical image input, one requested delta, and explicit invariants; never recreate a later version from text alone.
+- Treat each successful returned raster as a new immutable `DesignVersion` with parent lineage. Keep the parent active and intact until the child succeeds, and preserve it on billing, quota, authentication, moderation, timeout, or other provider failure. Follow `__grounding/IMAGE_ITERATION.md`.
 - The LanceDB reference catalog is local, inspectable, and seeded only with project-authored illustrations. Label associations describe neutral trait overlap and never claim an official product, affiliation, or endorsement.
+- The Inspiration library is a separate LanceDB catalog backed by `backend/seeds/product_inspiration.json`: 30 real sourced products for each of 20 labels. Enforce unique product, source, and image URLs; expose complete brand/category facets; return at most 30 contextual results per browse request; and retain product-page provenance. Never replace real product results with unsourced illustration cards.
 - A model/lookbook render is a separate `PresentationRender` linked to one immutable `DesignVersion`; changing casting, pose, place, or light must never create or overwrite a garment version. Follow `__grounding/CASTING.md`.
 - Expose `/api/health`. Keep API failures legible and never leak upstream error bodies or credentials to the browser.
 
 ## Canonical demo
 
-The five-minute hackathon story is OpenAI DevDay swag: a distressed bomber over a white T-shirt, explored through three authored versions. John Elliott is a selected research signal translated only into neutral traits—refined essentials, fabric focus, layered neutrals, and restrained proportion. The fictional adult presentation must not reproduce a John Elliott garment, campaign, or recognizable model.
+The planned five-minute hackathon story is OpenAI DevDay swag: a distressed bomber over a white T-shirt. Durable object names are `Bomber jacket` and `T-shirt`; `FINISH / distressed` and `COLOR / white` belong to their active versions rather than the object names. The acceptance target is three authored raster versions: version 01 from a real `gpt-image-2` generation call, followed by versions 02 and 03 as successive Images API edits of the exact preceding raster.
+
+Current status on 2026-07-17: three prepared `gpt-image-2` garment rasters and one fictional-adult editorial raster have an exact direct OpenAI generation/edit lineage recorded in `__grounding/DEV_DAY_IMAGE_GENERATION.md`. The startup importer checksum-verifies them into real local `DesignVersion` and `PresentationRender` records. ChatKit then made and persisted Version 04 through the same direct OpenAI edit path using Version 03's exact raster. Live failures must preserve the current view and report the blocked state. John Elliott remains only a neutral research signal—refined essentials, fabric focus, layered neutrals, and restrained proportion. The fictional adult presentation must not reproduce a John Elliott garment, campaign, or recognizable model.
 
 ## Repository skills
 

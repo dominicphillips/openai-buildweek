@@ -18,10 +18,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--reference", action="append", default=[], type=Path)
     parser.add_argument("--mask", type=Path)
     parser.add_argument("--model", default="gpt-image-2")
-    parser.add_argument("--size", default="1024x1024")
-    parser.add_argument(
-        "--quality", choices=("low", "medium", "high", "auto"), default="low"
-    )
+    parser.add_argument("--size", default="1024x1536")
+    parser.add_argument("--quality", choices=("low", "medium", "high", "auto"), default="medium")
     parser.add_argument("--format", choices=("png", "jpeg", "webp"), default="png")
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
@@ -43,6 +41,7 @@ def validate(args: argparse.Namespace) -> None:
 def plan(args: argparse.Namespace) -> dict[str, object]:
     return {
         "operation": "edit" if args.reference else "generate",
+        "provider": "openai",
         "model": args.model,
         "prompt": args.prompt,
         "references": [str(path) for path in args.reference],
@@ -62,12 +61,6 @@ def main() -> None:
         print(json.dumps(resolved, indent=2))
         return
 
-    if not os.environ.get("OPENAI_API_KEY"):
-        raise SystemExit("OPENAI_API_KEY is required")
-
-    from openai import OpenAI
-
-    client = OpenAI()
     common = {
         "model": args.model,
         "prompt": args.prompt,
@@ -76,6 +69,21 @@ def main() -> None:
         "output_format": args.format,
     }
 
+    encoded, request_id = run_openai(args, common)
+    if not encoded:
+        raise RuntimeError("Image API returned no base64 image")
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_bytes(base64.b64decode(encoded))
+    print(json.dumps({**resolved, "request_id": request_id}, indent=2))
+
+
+def run_openai(args: argparse.Namespace, common: dict[str, str]) -> tuple[str, str | None]:
+    if not os.environ.get("OPENAI_API_KEY"):
+        raise SystemExit("OPENAI_API_KEY is required")
+
+    from openai import OpenAI
+
+    client = OpenAI()
     with ExitStack() as stack:
         if args.reference:
             images = [stack.enter_context(path.open("rb")) for path in args.reference]
@@ -85,18 +93,6 @@ def main() -> None:
             result = client.images.edit(**request)
         else:
             result = client.images.generate(**common)
-
-    encoded = result.data[0].b64_json
-    if not encoded:
-        raise RuntimeError("Image API returned no base64 image")
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_bytes(base64.b64decode(encoded))
-    print(
-        json.dumps(
-            {**resolved, "request_id": getattr(result, "_request_id", None)}, indent=2
-        )
-    )
-
-
+    return result.data[0].b64_json, getattr(result, "_request_id", None)
 if __name__ == "__main__":
     main()

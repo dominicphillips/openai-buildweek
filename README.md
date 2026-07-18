@@ -9,24 +9,26 @@ The name is an homage to Virgil Abloh and Nike's *Something's Off*, redirected t
 The current build includes:
 
 - an optional, dark onboarding ritual with locally persisted completion, selected labels, object, and safe references;
-- an inspectable 30-item catalog of project-authored garment illustrations, indexed locally with LanceDB full-text search;
-- a top-level Inspiration panel that filters and pulls catalog studies onto the canvas;
+- a 600-product Inspiration library—30 sourced products for each of 20 labels—indexed locally with LanceDB full-text search and complete browse facets;
+- a top-level Inspiration panel that filters real product references and pulls them beside the current design;
 - an expansive studio with pointer and keyboard pan, pointer-anchored 35–400% zoom, restrained tilt, fit/reset, and an in-bounds right-click tool menu;
-- original live React/SVG illustrations composed with Motion and reduced-motion support;
-- a separate fictional-adult casting layer that presents an immutable garment version without changing it; and
-- a deterministic OpenAI DevDay demo with a distressed bomber, white T-shirt, fictional adult model, and three switchable authored looks.
+- original live React/SVG interface illustrations composed with Motion and reduced-motion support, kept separate from generated design truth;
+- a separate fictional-adult Editorial layer that presents an immutable garment version without changing it; and
+- a ready OpenAI DevDay story with three real direct-OpenAI garment rasters, exact edit lineage, a real editorial raster, and a working live ChatKit edit loop.
 
 Chat stays on the left, the current design stays centered, and references remain within reach.
 
 ## Run locally
 
-Requirements: Node.js with npm, Python 3.12–3.14, and [uv](https://docs.astral.sh/uv/). The visual shell, local catalog, canvas, and DevDay demo run without paid API calls.
+Requirements: Node.js with npm, Python 3.12–3.14, and [uv](https://docs.astral.sh/uv/). The visual shell, 600-product local index, canvas, and prepared DevDay V1–V3/editorial story start without making a paid API call. New chat-guided edits and Editorial renders use the configured OpenAI account.
 
 Start the API in one terminal:
 
 ```bash
 cd backend
 uv sync
+uv run python scripts/cache_product_images.py
+uv run python scripts/cache_product_images.py --verify
 uv run uvicorn somethings_on.main:app --host 127.0.0.1 --port 43174
 ```
 
@@ -50,13 +52,15 @@ npm run preview
 
 ## Demo route
 
-Open `http://127.0.0.1:43173/?demo=devday` for the five-minute hackathon story. It bypasses onboarding and opens three authored React/SVG studies of OpenAI DevDay swag:
+Open `http://127.0.0.1:43173/?demo=devday` for the five-minute hackathon story. It bypasses onboarding and opens three immutable `gpt-image-2` garment versions imported through the same backend asset/version APIs used by live work:
 
 1. a washed-charcoal flight bomber over a white T-shirt;
 2. an inside-out construction study with exposed seams and orange bartacks; and
-3. a cropped mineral-olive utility version.
+3. the exact Version 02 raster edited only to shorten the bomber body to a high-hip crop.
 
-John Elliott is used only as a taste signal translated into refined essentials, fabric focus, layered neutrals, and restrained proportion. The garments, model, setting, and illustrations are original project work. Selecting a casting direction in this deterministic demo applies a local presentation fixture; it does not spend image credits or alter the selected garment version.
+Version 01 is a direct OpenAI generation. Version 02 edits Version 01's exact PNG, and Version 03 edits Version 02's exact PNG. The prepared fictional-adult editorial is a separate real `gpt-image-2` output linked to Version 03. Prompts, OpenAI request ids, hashes, and parent inputs are recorded in `__grounding/DEV_DAY_IMAGE_GENERATION.md`. A new ChatKit instruction sends the selected current raster back through the direct OpenAI edit path and appends the returned image as an immutable child.
+
+John Elliott is used only as a taste signal translated into refined essentials, fabric focus, layered neutrals, and restrained proportion. The generated garments and fictional model are original project work; the app does not claim a John Elliott product, campaign, or endorsement. Selecting a new Editorial direction calls the real presentation endpoint, spends image credits, and never alters the garment version.
 
 ## Studio controls
 
@@ -65,14 +69,16 @@ John Elliott is used only as a taste signal translated into refined essentials, 
 - Hold Shift while scrolling, or use `[` and `]`, to tilt.
 - Use arrow keys to pan; hold Shift for a larger step.
 - Use `+` / `-` to zoom and `0` to fit the composition.
-- Press `I` for Inspiration and `M` for the fictional-model presentation panel.
-- Right-click for Inspiration, Model, Inspect at 170%, Detail at 400%, Straighten, and Fit tools.
+- Press `I` for Inspiration and `M` for the Editorial panel.
+- Right-click for Inspiration, Editorial, Inspect at 170%, Detail at 400%, Straighten, and Fit tools.
 
-The top Inspiration panel searches all 30 local studies. Selected labels and the active object influence relevance, while every association remains a neutral trait overlap rather than an official product claim.
+The top Inspiration panel searches the 600-product library. The default view returns up to 30 references related to the active object; choose a label plus “All objects” to browse all 30 products for that label. Product cards retain their real source URL, while any extracted traits remain neutral observations rather than affiliation or style-transfer instructions. The cache command above downloads private local research copies into ignored `backend/data/product-images/`; the browser then loads versioned same-origin images instead of hotlinking brand sites. Re-run the command to resume missing downloads, or use `--verify` for an offline integrity check.
 
 ## OpenAI and ChatKit configuration
 
 Copy `backend/.env.example` to the ignored `backend/.env` only when you need OpenAI-backed chat or generation. Never put credentials in the frontend.
+
+For local runs, `backend/.env` takes precedence over inherited shell variables so an unrelated global key cannot silently select another OpenAI account.
 
 - `OPENAI_API_KEY` enables the Agents SDK design guide and `gpt-image-2` generation.
 - `SOMETHINGS_ON_CHATKIT_DOMAIN_KEY` supplies the public browser domain configuration required by the hosted ChatKit surface.
@@ -104,8 +110,8 @@ The backend tests use fake image providers and must not spend API credits. Finis
 
 ## Repository map
 
-- `app/` — Vite, React, TypeScript, Tailwind CSS v4, Motion, ChatKit, and the local Radix ScrollArea primitive
-- `backend/` — FastAPI, OpenAI Agents SDK, custom ChatKit server protocol, SQLite domain storage, and LanceDB catalog
+- `app/` — Vite, React, TypeScript, Tailwind CSS v4, Motion, ChatKit, and locally owned Radix ScrollArea/Select primitives
+- `backend/` — FastAPI, OpenAI Agents SDK, custom ChatKit server protocol, SQLite domain storage, and separate LanceDB reference/product catalogs
 - `__grounding/` — product decisions, architecture, sources, casting rules, brand research, and iconography
 - `__harness/skills/` — stripped-down, project-owned creative and review skills that use explicit inputs and standard environment variables
 - `AGENTS.md` — work loop, orchestration, visual, security, and commit contracts for contributors and agents

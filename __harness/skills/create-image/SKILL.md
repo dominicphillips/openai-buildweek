@@ -5,7 +5,7 @@ description: Generate new raster concepts or edit user-provided design and portr
 
 # Create Image
 
-Use `scripts/create_image.py` for a small, portable OpenAI Image API workflow. It reads `OPENAI_API_KEY` from the environment and never stores or prints the key.
+Use `scripts/create_image.py` for a small, portable direct OpenAI Image API workflow. It reads `OPENAI_API_KEY` and never stores or prints the key.
 
 ## Workflow
 
@@ -23,7 +23,7 @@ uv run --with 'openai>=2.38,<3' \
   __harness/skills/create-image/scripts/create_image.py \
   'Studio product study of a white heavyweight cotton T-shirt' \
   --output backend/generated/white-tee.png \
-  --quality low \
+  --quality medium \
   --dry-run
 ```
 
@@ -34,14 +34,15 @@ uv run --with 'openai>=2.38,<3' \
   --reference backend/uploads/current.png \
   --reference backend/uploads/neckline-reference.png \
   --output backend/generated/white-tee-v2.png \
-  --quality low
+  --quality medium
 ```
 
 Read `references/prompting.md` before writing a fashion edit or portrait prompt.
 
 ## Constraints
 
-- Default to `gpt-image-2`, `1024x1024`, and `low` for exploratory work.
+- Default to `gpt-image-2`, portrait `1024x1536`, and `medium` for inspectable fashion work.
+- Use `low` only for explicitly disposable thumbnails; never promote one as the canonical garment.
 - Do not set `input_fidelity`; `gpt-image-2` already processes references at high fidelity.
 - Do not request transparency; `gpt-image-2` does not support it.
 - Keep source portraits and generated portraits clearly labeled. Never present an illustrated avatar as a documentary photograph.

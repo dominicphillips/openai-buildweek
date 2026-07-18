@@ -5,11 +5,14 @@ This folder is the shared source of truth for product context, research, decisio
 - `PRODUCT.md` — audience, promise, journey, and first vertical slice
 - `DESIGN_PRINCIPLES.md` — responsible creative principles and interaction rules
 - `BRANDS.md` — initial preference-selector catalog and neutral trait tags
+- `INSPIRATION_PRODUCTS_600.json` — validated review catalog with 30 sourced products per label
 - `ARCHITECTURE.md` — system boundaries, ports, state, and integration decisions
 - `SOUND.md` — optional creative-focus audio direction
 - `SOURCES.md` — external source trail and what each source supports
 - `CASTING.md` — fictional adult lookbook directions and the immutable presentation boundary
 - `ICONOGRAPHY.md` — original garment-outline grammar and React/SVG runbook
+- `FASHION_PRODUCT_RESEARCH.md` — evidence for garment views, specs, colorways, and immutable edit lineage
+- `DEV_DAY_IMAGE_GENERATION.md` — exact gpt-image-2 preview lineage, prompts, settings, and hashes
 - `brands/` — sourced label/designer grounding, rights manifests, and blocked avatar-generation records
 - `../COPY.md` — product voice, canonical stage copy, and anti-imitation guardrails
 
