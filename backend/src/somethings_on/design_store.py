@@ -364,6 +364,30 @@ class SQLiteDesignStore:
             raise AssetNotFoundError(asset_id)
         return self._asset_from_row(row), row["storage_path"]
 
+    async def find_asset_by_provenance(
+        self,
+        *,
+        project_id: str,
+        source_url: str,
+        sha256: str,
+    ) -> tuple[AssetRecord, str] | None:
+        """Find an already imported local artifact without duplicating its database row."""
+
+        async with self._connect() as database:
+            row = await self._fetchone(
+                database,
+                """
+                SELECT * FROM design_assets
+                WHERE project_id = ? AND source_url = ? AND sha256 = ?
+                ORDER BY created_at ASC
+                LIMIT 1
+                """,
+                (project_id, source_url, sha256),
+            )
+        if row is None:
+            return None
+        return self._asset_from_row(row), row["storage_path"]
+
     async def create_generation_job(
         self,
         *,
@@ -419,6 +443,62 @@ class SQLiteDesignStore:
             """,
             (status, output_asset_id, error_code, utc_now().isoformat(), job_id),
         )
+
+    async def materialize_concept_version(
+        self,
+        *,
+        project_id: str,
+        version_id: str,
+        asset_id: str,
+        generation_job_id: str,
+        requested_change: str,
+        preserve: list[str],
+        avoid: list[str],
+        prompt: str,
+    ) -> DesignVersionRecord:
+        """Turn one provisional assetless concept into its first immutable raster version."""
+
+        async with self._connect() as database:
+            cursor = await database.execute(
+                """
+                UPDATE design_versions
+                SET asset_id = ?, generation_job_id = ?, requested_change = ?,
+                    preserve_items = ?, avoid_items = ?, prompt = ?, status = 'ready',
+                    created_at = ?
+                WHERE project_id = ? AND id = ?
+                    AND status = 'concept' AND asset_id IS NULL
+                """,
+                (
+                    asset_id,
+                    generation_job_id,
+                    requested_change,
+                    json.dumps(preserve),
+                    json.dumps(avoid),
+                    prompt,
+                    utc_now().isoformat(),
+                    project_id,
+                    version_id,
+                ),
+            )
+            if cursor.rowcount != 1:
+                existing = await self._fetchone(
+                    database,
+                    "SELECT id FROM design_versions WHERE project_id = ? AND id = ?",
+                    (project_id, version_id),
+                )
+                if existing is None:
+                    raise DesignVersionNotFoundError(version_id)
+                raise ValueError("Only an assetless concept can become the first raster version.")
+            row = await self._fetchone(
+                database,
+                "SELECT * FROM design_versions WHERE project_id = ? AND id = ?",
+                (project_id, version_id),
+            )
+            await database.commit()
+
+        if row is None:  # pragma: no cover - guarded by the successful update above
+            raise DesignVersionNotFoundError(version_id)
+        return self._version_from_row(row)
 
     async def add_design_version(
         self,

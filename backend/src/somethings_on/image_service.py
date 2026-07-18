@@ -40,6 +40,10 @@ class CanonicalDesignAssetRequired(RuntimeError):
     pass
 
 
+class RevisionBaseAssetRequired(RuntimeError):
+    pass
+
+
 class GarmentPreservationAssessment(BaseModel):
     """Structured vision assessment for a generated lookbook candidate."""
 
@@ -53,10 +57,17 @@ class GarmentPreservationAssessment(BaseModel):
 class ImageProvider(Protocol):
     model: str
 
-    async def create(
+    async def generate(
         self,
         prompt: str,
-        reference_path: Path | None = None,
+        *,
+        quality: ImageQuality = "low",
+    ) -> bytes: ...
+
+    async def edit(
+        self,
+        prompt: str,
+        reference_path: Path,
         *,
         quality: ImageQuality = "low",
     ) -> bytes: ...
@@ -84,38 +95,46 @@ class OpenAIImageProvider:
         self.assessment_model = assessment_model
         self.client = AsyncOpenAI(api_key=api_key)
 
-    async def create(
+    async def generate(
         self,
         prompt: str,
-        reference_path: Path | None = None,
         *,
         quality: ImageQuality = "low",
     ) -> bytes:
-        if reference_path is None:
-            response = await self.client.images.generate(
+        response = await self.client.images.generate(
+            model=self.model,
+            prompt=prompt,
+            size="1024x1536",
+            quality=quality,
+        )
+        return self._decode_image_response(response)
+
+    async def edit(
+        self,
+        prompt: str,
+        reference_path: Path,
+        *,
+        quality: ImageQuality = "low",
+    ) -> bytes:
+        with reference_path.open("rb") as reference:
+            response = await self.client.images.edit(
                 model=self.model,
+                image=reference,
                 prompt=prompt,
-                size="1024x1024",
+                size="1024x1536",
                 quality=quality,
             )
-        else:
-            with reference_path.open("rb") as reference:
-                response = await self.client.images.edit(
-                    model=self.model,
-                    image=reference,
-                    prompt=prompt,
-                    size="1024x1024",
-                    quality=quality,
-                )
+        return self._decode_image_response(response)
 
-        if not response.data or not response.data[0].b64_json:
-            raise ImageGenerationUnavailable("The image provider returned no image data.")
+    @staticmethod
+    def _decode_image_response(response: object) -> bytes:
+        data = getattr(response, "data", None)
+        if not data or not data[0].b64_json:
+            raise ImageGenerationUnavailable("The image did not finish. Try again.")
         try:
-            return base64.b64decode(response.data[0].b64_json, validate=True)
+            return base64.b64decode(data[0].b64_json, validate=True)
         except ValueError as error:
-            raise ImageGenerationUnavailable(
-                "The image provider returned invalid image data."
-            ) from error
+            raise ImageGenerationUnavailable("The image did not finish. Try again.") from error
 
     async def assess_preservation(
         self,
@@ -172,8 +191,7 @@ class OpenAIImageProvider:
                 if isinstance(parsed, GarmentPreservationAssessment):
                     return parsed
         raise ImageGenerationUnavailable(
-            "The garment preservation review did not return a usable result. "
-            "Your design is unchanged."
+            "The editorial view could not be checked. The current version is unchanged."
         )
 
     @staticmethod
@@ -232,43 +250,67 @@ class DesignImageService:
         requested_change: str,
         preserve: list[str] | None = None,
         avoid: list[str] | None = None,
+        base_version_id: str | None = None,
     ) -> DesignVersionRecord:
         if self.provider is None:
             raise ImageGenerationUnavailable(
-                "Image generation is not configured. Add OPENAI_API_KEY and restart the service."
+                "The studio is not connected yet. Start the image service and try again."
             )
 
         project = await self.store.ensure_project(project_id)
-        current = project.current_version
+        base_version = (
+            await self.store.get_design_version(project_id, base_version_id)
+            if base_version_id is not None
+            else project.current_version
+        )
+        if base_version_id is not None and (base_version is None or base_version.asset_id is None):
+            raise RevisionBaseAssetRequired(
+                "The selected design version has no raster to edit. Generate the first design "
+                "without a base version."
+            )
         requested_change = requested_change.strip()[:800]
         if not requested_change:
             raise ValueError("Describe one concrete design change.")
         keep = self._clean_list(preserve)
         exclude = self._clean_list(avoid)
-        prompt = self._build_prompt(
-            object_name=project.object_name,
-            taste_traits=[tag for signal in project.taste_signals for tag in signal.tags],
-            requested_change=requested_change,
-            preserve=keep,
-            avoid=exclude,
-            is_edit=bool(current and current.asset_id),
-        )
+        is_edit = bool(base_version and base_version.asset_id)
+        if is_edit:
+            prompt = self._build_edit_prompt(
+                object_name=project.object_name,
+                requested_change=requested_change,
+                preserve=keep,
+                avoid=exclude,
+            )
+        else:
+            prompt = self._build_initial_prompt(
+                object_name=project.object_name,
+                taste_traits=[tag for signal in project.taste_signals for tag in signal.tags],
+                requested_change=requested_change,
+                preserve=keep,
+                avoid=exclude,
+            )
 
         job = await self.store.create_generation_job(
             project_id=project_id,
-            base_version_id=current.id if current else None,
+            base_version_id=base_version.id if is_edit and base_version else None,
             requested_change=requested_change,
             model=self.image_model,
         )
         await self.store.update_generation_job(job.id, status="running")
 
         try:
-            reference_path = None
-            if current and current.asset_id:
-                reference_path = await self.resolve_asset(current.asset_id)
-            # Design iterations are deliberately fast drafts; refinement can opt into
-            # higher fidelity later without making every exploratory branch expensive.
-            raw_image = await self.provider.create(prompt, reference_path, quality="low")
+            if base_version and base_version.asset_id:
+                reference_path = await self.resolve_asset(base_version.asset_id)
+                # Every subsequent instruction is a real Images API edit of the selected
+                # immutable raster. There is deliberately no text-only regeneration fallback.
+                raw_image = await self.provider.edit(
+                    prompt,
+                    reference_path,
+                    quality="medium",
+                )
+            else:
+                # Only the first raster version is generated without an image reference.
+                raw_image = await self.provider.generate(prompt, quality="medium")
             normalized, width, height = await asyncio.to_thread(self._normalize_image, raw_image)
             storage_path = await self._write_asset(project_id, normalized)
             asset = await self.store.add_asset(
@@ -280,16 +322,30 @@ class DesignImageService:
                 height=height,
                 sha256=hashlib.sha256(normalized).hexdigest(),
             )
-            version = await self.store.add_design_version(
-                project_id=project_id,
-                parent_version_id=current.id if current else None,
-                asset_id=asset.id,
-                generation_job_id=job.id,
-                requested_change=requested_change,
-                preserve=keep,
-                avoid=exclude,
-                prompt=prompt,
-            )
+            if base_version and base_version.status == "concept":
+                # The assetless concept is provisional UI state, not garment truth. The first
+                # successful generate-only transaction materializes it as ready version 01.
+                version = await self.store.materialize_concept_version(
+                    project_id=project_id,
+                    version_id=base_version.id,
+                    asset_id=asset.id,
+                    generation_job_id=job.id,
+                    requested_change=requested_change,
+                    preserve=keep,
+                    avoid=exclude,
+                    prompt=prompt,
+                )
+            else:
+                version = await self.store.add_design_version(
+                    project_id=project_id,
+                    parent_version_id=base_version.id if base_version else None,
+                    asset_id=asset.id,
+                    generation_job_id=job.id,
+                    requested_change=requested_change,
+                    preserve=keep,
+                    avoid=exclude,
+                    prompt=prompt,
+                )
             await self.store.update_generation_job(
                 job.id,
                 status="succeeded",
@@ -333,11 +389,11 @@ class DesignImageService:
             )
         if self.provider is None:
             raise ImageGenerationUnavailable(
-                "Lookbook rendering is not configured. Your design is unchanged."
+                "Editorial views are not available right now. The current version is unchanged."
             )
         if self.preservation_assessor is None:
             raise ImageGenerationUnavailable(
-                "Lookbook preservation review is not configured. Your design is unchanged."
+                "The editorial view could not be checked. The current version is unchanged."
             )
 
         prompt = self._build_presentation_prompt(
@@ -358,9 +414,9 @@ class DesignImageService:
 
         try:
             reference_path = await self.resolve_asset(version.asset_id)
-            # A presentation is a reviewable lookbook artifact, so it uses medium
-            # render quality while exploratory garment revisions remain low quality.
-            raw_image = await self.provider.create(prompt, reference_path, quality="medium")
+            # Both canonical garment studies and presentation views use medium quality;
+            # these rasters are inspected and iterated, not disposable thumbnails.
+            raw_image = await self.provider.edit(prompt, reference_path, quality="medium")
             normalized, width, height = await asyncio.to_thread(self._normalize_image, raw_image)
             assessment = await self.preservation_assessor.assess_preservation(
                 canonical_path=reference_path,
@@ -438,27 +494,21 @@ class DesignImageService:
         return [value.strip()[:120] for value in values if value.strip()][:8]
 
     @staticmethod
-    def _build_prompt(
+    def _build_initial_prompt(
         *,
         object_name: str,
         taste_traits: list[str],
         requested_change: str,
         preserve: list[str],
         avoid: list[str],
-        is_edit: bool,
     ) -> str:
-        mode = (
-            "Edit the supplied design study while keeping its identity and camera view stable."
-            if is_edit
-            else "Create the first original design study from scratch."
-        )
         traits = ", ".join(dict.fromkeys(taste_traits)) or "considered proportion and construction"
         keep = ", ".join(preserve) or "the object category and clear front-view readability"
         exclusions = ", ".join(avoid) or "unrequested changes"
         return (
-            f"{mode}\n"
+            "Create the first original design study from scratch.\n"
             f"Object: {object_name}.\n"
-            f"Requested authored change: {requested_change}.\n"
+            f"Starting design brief: {requested_change}.\n"
             f"Preserve: {keep}.\n"
             f"Avoid: {exclusions}.\n"
             f"Abstract taste traits: {traits}. Translate these into original proportion, material, "
@@ -467,6 +517,32 @@ class DesignImageService:
             "studio background, soft directional light, editorial product-study realism. No "
             "person, no logo, no brand mark, no signature graphic, no readable text, no watermark, "
             "no collage."
+        )
+
+    @staticmethod
+    def _build_edit_prompt(
+        *,
+        object_name: str,
+        requested_change: str,
+        preserve: list[str],
+        avoid: list[str],
+    ) -> str:
+        keep = ", ".join(preserve) or (
+            "object category, silhouette, cut, proportions, materials, construction, color, "
+            "graphics, finish, trims, closures, and placement"
+        )
+        exclusions = ", ".join(avoid) or "any other design change"
+        return (
+            "Edit the supplied current design image. Use it as the sole visual source of truth.\n"
+            f"Object: {object_name}.\n"
+            f"Make exactly this one requested visible change: {requested_change}.\n"
+            f"Keep unchanged: {keep}.\n"
+            f"Avoid: {exclusions}.\n"
+            "Everything outside the requested detail must remain visually unchanged, including "
+            "the garment identity, camera, framing, background, and lighting. Do not reinterpret "
+            "taste traits, redesign the object, add styling, or introduce a second change. Return "
+            "one centered edited fashion product with the full object visible. No person, no logo, "
+            "no brand mark, no signature graphic, no readable text, no watermark, no collage."
         )
 
     @staticmethod

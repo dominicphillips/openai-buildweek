@@ -4,11 +4,18 @@ import json
 from typing import Any, cast
 
 from agents import Agent, RunContextWrapper, function_tool
+from agents.models.interface import Model
 from chatkit.agents import AgentContext
 from chatkit.types import ClientEffectEvent, ProgressUpdateEvent
 
-from .image_service import DesignImageService, ImageGenerationUnavailable, InvalidImageError
-from .models import ProjectSnapshot
+from .design_store import DesignVersionNotFoundError
+from .image_service import (
+    DesignImageService,
+    ImageGenerationUnavailable,
+    InvalidImageError,
+    RevisionBaseAssetRequired,
+)
+from .models import DesignVersionRecord, ProjectSnapshot
 
 AgentRequestContext = dict[str, Any]
 
@@ -32,6 +39,7 @@ async def create_design_revision(
     request_context = agent_context.request_context
     service = cast(DesignImageService, request_context["image_service"])
     project_id = cast(str, request_context["project_id"])
+    base_version_id = cast(str | None, request_context.get("base_version_id"))
 
     await agent_context.stream(
         ProgressUpdateEvent(icon="sparkle", text="Rendering one authored change…")
@@ -42,7 +50,15 @@ async def create_design_revision(
             requested_change=requested_change,
             preserve=preserve,
             avoid=avoid,
+            base_version_id=base_version_id,
         )
+    except DesignVersionNotFoundError:
+        return (
+            "The visual revision was not created: the selected design version is no longer "
+            "available. Choose another version and try again."
+        )
+    except RevisionBaseAssetRequired as error:
+        return f"The visual revision was not created: {error}"
     except (ImageGenerationUnavailable, InvalidImageError, ValueError) as error:
         return f"The visual revision was not created: {error}"
 
@@ -72,16 +88,23 @@ async def create_design_revision(
 def build_design_agent(
     project: ProjectSnapshot,
     *,
-    model: str,
+    model: str | Model,
+    selected_version: DesignVersionRecord | None = None,
 ) -> Agent[AgentContext[AgentRequestContext]]:
     taste_traits = sorted({tag for signal in project.taste_signals for tag in signal.tags})
-    current = project.current_version
+    latest = project.current_version
+    selected = selected_version or latest
     project_state = {
         "object": project.object_name,
         "taste_traits": taste_traits,
         "reference_count": len(project.references) + len(project.link_references),
-        "current_version": current.version_number if current else 1,
-        "last_change": current.requested_change if current else "Base study",
+        "latest_version_id": latest.id if latest else None,
+        "latest_version_number": latest.version_number if latest else None,
+        "selected_version_id": selected.id if selected else None,
+        "selected_version_number": selected.version_number if selected else None,
+        "selected_version_is_latest": bool(selected and latest and selected.id == latest.id),
+        "selected_version_has_raster": bool(selected and selected.asset_id),
+        "selected_last_change": selected.requested_change if selected else "Base study",
     }
 
     return Agent[AgentContext[AgentRequestContext]](
@@ -105,6 +128,11 @@ def build_design_agent(
             "preserved. If the tool "
             "cannot run, say so plainly and continue the design conversation without pretending an "
             "image exists.\n\n"
+            "The browser's selected design version is authoritative for this turn. The revision "
+            "tool is bound to that immutable version in local request context; never substitute "
+            "the latest version or ask the tool to choose a different parent. If the selected "
+            "version is older than the latest version, a successful revision deliberately creates "
+            "a branch while preserving every existing version.\n\n"
             f"Current project state:\n{json.dumps(project_state, indent=2)}"
         ),
         tools=[create_design_revision],

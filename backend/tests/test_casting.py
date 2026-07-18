@@ -41,10 +41,19 @@ class RecordingImageProvider:
     def __init__(self) -> None:
         self.calls: list[tuple[str, Path | None, ImageQuality]] = []
 
-    async def create(
+    async def generate(
         self,
         prompt: str,
-        reference_path: Path | None = None,
+        *,
+        quality: ImageQuality = "low",
+    ) -> bytes:
+        self.calls.append((prompt, None, quality))
+        return image_bytes("black")
+
+    async def edit(
+        self,
+        prompt: str,
+        reference_path: Path,
         *,
         quality: ImageQuality = "low",
     ) -> bytes:
@@ -132,7 +141,7 @@ async def test_presentation_uses_canonical_asset_without_adding_design_version(
     assert [record.id for record in after.presentations] == [presentation.id]
     assert provider.calls[-1][1] is not None
     assert provider.calls[-1][1].is_file()
-    assert [call[2] for call in provider.calls] == ["low", "medium"]
+    assert [call[2] for call in provider.calls] == ["medium", "medium"]
     assert len(assessor.calls) == 1
     assert assessor.calls[0][0] == provider.calls[-1][1]
     assert assessor.calls[0][1]
@@ -189,7 +198,7 @@ async def test_garment_drift_fails_presentation_without_saving_asset_or_version(
     assert after.presentations == [presentation]
     assert asset_files_after == asset_files_before
     assert len(assessor.calls) == 1
-    assert [call[2] for call in provider.calls] == ["low", "medium"]
+    assert [call[2] for call in provider.calls] == ["medium", "medium"]
 
 
 @pytest.mark.asyncio
@@ -220,7 +229,7 @@ async def test_provider_unavailable_keeps_design_and_presentation_history_clean(
         casting_catalog=catalog,
     )
 
-    with pytest.raises(ImageGenerationUnavailable, match="not configured"):
+    with pytest.raises(ImageGenerationUnavailable, match="not available right now"):
         await offline_service.create_presentation(
             project_id="look_001",
             request=PresentationCreateInput(preset_id="nerdy-tech-girl"),
@@ -392,5 +401,5 @@ def test_casting_endpoint_reports_provider_unavailable(tmp_path: Path) -> None:
         )
         assert unavailable.status_code == 503
         assert unavailable.json()["detail"] == (
-            "Lookbook rendering is not configured. Your design is unchanged."
+            "Editorial views are not available right now. The current version is unchanged."
         )

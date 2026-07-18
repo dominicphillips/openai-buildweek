@@ -71,27 +71,26 @@
     ]
   },
   "ux_copy": {
-    "action": "Style it on a model",
-    "eyebrow": "CASTING DIRECTION",
-    "heading": "Choose a point of view, not a person.",
-    "body": "These fictional editorial setups change the pose, place, and light. Your design stays untouched.",
-    "helper": "Preset names describe the image treatment—not anyone's nationality, identity, job, or personality.",
-    "controls_label": "Vary the casting",
+    "action": "Editorial",
+    "eyebrow": "EDITORIAL",
+    "heading": "See it worn.",
+    "body": "Choose the wearer, stance, setting, and light. The garment itself won't change.",
+    "helper": "Adjust the image direction without changing the garment.",
+    "controls_label": "Adjust editorial",
     "controls_helper": "Body, skin tone, age, and presentation move independently. Leave any field open for a new adult fictional model.",
-    "policy_note": "Adults only. No real-person lookalikes, celebrities, brands, or borrowed campaigns.",
-    "primary_action": "Make a lookbook view",
+    "primary_action": "Make editorial view",
     "linked_version_label": "Presentation of {version}",
     "invariant_badge": "DESIGN UNCHANGED",
-    "retry_action": "Try another casting",
-    "back_action": "Back to the design",
-    "drift_error": "The garment changed in this render, so we didn't save it. Try again with fewer presentation changes.",
-    "failure": "That lookbook view didn't finish. Your design is safe."
+    "retry_action": "Try another direction",
+    "back_action": "Back to design",
+    "drift_error": "The garment changed, so this view was not saved. Try a simpler editorial direction.",
+    "failure": "That editorial view did not finish. The current version has not changed."
   },
   "presets": [
     {
       "id": "edgy-european-guy",
       "display_name": "Edgy European Guy",
-      "one_line_mood": "A sharp after-dark city editorial with quiet confidence and a little abrasion.",
+      "one_line_mood": "Full-body stance, worn stone passage, cool overhead light.",
       "wardrobe_context": "Experimental menswear-leaning lookbook; the supplied garment is fully visible, with only a tonal unbranded base layer and plain footwear where needed.",
       "pose": "Full-body three-quarter stance with weight slightly off-center, one hand relaxed, chin neutral; adapt to an equally assertive seated pose when selected.",
       "setting": "A fictional old-city service passage with worn stone, brushed metal, and no flags, landmarks, signs, or regional symbols.",
@@ -116,7 +115,7 @@
     {
       "id": "nerdy-tech-girl",
       "display_name": "Nerdy Tech Girl",
-      "one_line_mood": "Precise, curious, slightly playful studio energy without corporate polish.",
+      "one_line_mood": "Direct studio stance, clean worktable setting, soft screen light.",
       "wardrobe_context": "Independent creative-technology studio lookbook; the garment remains the hero, with simple unbranded bottoms and shoes only if the frame requires them.",
       "pose": "Open full-body stance beside a low prototype table, one hand hovering near an unlabeled object but clear of the garment; offer a composed seated alternative.",
       "setting": "An invented prototyping room with modular surfaces, soft cable geometry, paper notes without legible text, and generic unbranded devices.",
@@ -141,7 +140,7 @@
     {
       "id": "concrete-romantic",
       "display_name": "Concrete Romantic",
-      "one_line_mood": "Tender fabric and human warmth held against a quiet raw structure.",
+      "one_line_mood": "Relaxed pose, raw concrete setting, warm side light.",
       "wardrobe_context": "Soft editorial styling around the supplied garment, using one neutral unbranded supporting layer only when it does not obscure construction or silhouette.",
       "pose": "Relaxed full-body contrapposto with shoulders open and hands away from key garment details; seated variation uses the same gentle asymmetry.",
       "setting": "An abstract cast-concrete room with a single linen curtain and no identifiable architecture.",
@@ -166,7 +165,7 @@
     {
       "id": "quiet-sports-futurist",
       "display_name": "Quiet Sports Futurist",
-      "one_line_mood": "Kinetic and technical, stripped of stadium noise and superhero spectacle.",
+      "one_line_mood": "Active stance, empty transit space, hard directional light.",
       "wardrobe_context": "Movement-led lookbook with the supplied garment unchanged; add only plain unbranded performance basics that do not compete with it.",
       "pose": "Balanced mid-step or gentle pivot captured full-body, with limbs clear of important graphics, seams, and closures; provide a dynamic seated equivalent.",
       "setting": "A matte training volume marked by abstract floor lines, with no team, gym, or event identity.",
@@ -191,7 +190,7 @@
     {
       "id": "sunday-market-collector",
       "display_name": "Sunday Market Collector",
-      "one_line_mood": "Tactile, resourceful, and sun-warmed, like a morning spent finding useful oddities.",
+      "one_line_mood": "Walking pose, open-air market textures, late-morning sun.",
       "wardrobe_context": "Eclectic but restrained lookbook; keep the supplied garment fully readable and pair it only with one or two texture-rich, unbranded basics.",
       "pose": "Natural full-body pause with one low neutral tote or folded paper held away from the garment; seated option rests props outside the silhouette.",
       "setting": "A fictional open-air materials stall with blank crates, fabric remnants, and no legible signs or culturally specific goods.",
@@ -216,7 +215,7 @@
     {
       "id": "after-hours-art-handler",
       "display_name": "After-Hours Art Handler",
-      "one_line_mood": "Practical gallery calm with traces of labor and a clean editorial edge.",
+      "one_line_mood": "Working stance, back-of-gallery setting, neutral strip light.",
       "wardrobe_context": "Workwear-inflected presentation of the supplied garment, with plain unbranded trousers and protective footwear only where they leave the design unobstructed.",
       "pose": "Grounded front-facing full-body stance beside an empty padded plinth, hands visible and off the garment; seated pose uses a low equipment case.",
       "setting": "An invented back-of-gallery room with blank walls, moving blankets, and unlabeled hardware.",
@@ -241,7 +240,7 @@
     {
       "id": "analog-club-regular",
       "display_name": "Analog Club Regular",
-      "one_line_mood": "Late-night warmth, imperfect rhythm, and a flash of handmade glamour.",
+      "one_line_mood": "Off-center stance, dark interior, warm point light.",
       "wardrobe_context": "Independent nightlife editorial with the supplied garment unchanged; supporting pieces stay minimal, opaque, unbranded, and non-costume-like.",
       "pose": "Full-body paused-dance gesture with a slight shoulder turn and hands clear of garment details; seated variation catches the same rhythm through posture.",
       "setting": "A small invented listening room with acoustic panels, a blank speaker cabinet, and no crowd or venue identity.",
@@ -266,7 +265,7 @@
     {
       "id": "sun-faded-minimalist",
       "display_name": "Sun-Faded Minimalist",
-      "one_line_mood": "Dry daylight, open air, and an easy silhouette with nothing extra to prove.",
+      "one_line_mood": "Relaxed stance, pale exterior, flat dry daylight.",
       "wardrobe_context": "Spare warm-weather lookbook centered on the supplied garment, with only neutral unbranded essentials needed for a complete, non-revealing outfit.",
       "pose": "Easy full-body stance into a light breeze, arms naturally separated from the torso; seated variation uses a broad low step and preserves the full silhouette.",
       "setting": "An abstract pale wall and weathered mineral ground with no coastline, landmark, or identifiable region.",

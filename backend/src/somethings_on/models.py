@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, computed_field, field_validator
 
@@ -20,8 +20,41 @@ class TasteSignal(BaseModel):
 
 
 class ProjectSeedInput(BaseModel):
-    object_name: str = Field(default="white T-shirt", min_length=1, max_length=160)
+    object_name: str = Field(default="T-shirt", min_length=1, max_length=160)
     taste_signals: list[TasteSignal] = Field(default_factory=list, max_length=5)
+
+
+RevisionInstruction = Annotated[str, Field(min_length=1, max_length=120)]
+
+
+class DesignRevisionCreateInput(BaseModel):
+    """One explicit raster generation or exact-image edit request."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    requested_change: str = Field(min_length=1, max_length=800)
+    preserve: list[RevisionInstruction] = Field(default_factory=list, max_length=8)
+    avoid: list[RevisionInstruction] = Field(default_factory=list, max_length=8)
+    base_version_id: str | None = Field(
+        default=None,
+        pattern=r"^ver_[a-f0-9]{12}$",
+    )
+
+    @field_validator("requested_change")
+    @classmethod
+    def normalize_requested_change(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Describe one concrete design change.")
+        return value
+
+    @field_validator("preserve", "avoid")
+    @classmethod
+    def normalize_instructions(cls, values: list[str]) -> list[str]:
+        normalized = [value.strip() for value in values]
+        if any(not value for value in normalized):
+            raise ValueError("Revision instructions cannot be blank.")
+        return normalized
 
 
 class LinkReferenceInput(BaseModel):

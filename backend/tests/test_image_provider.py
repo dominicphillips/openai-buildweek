@@ -75,8 +75,8 @@ async def test_openai_image_provider_forwards_explicit_render_quality(tmp_path: 
     reference = tmp_path / "canonical.png"
     reference.write_bytes(b"canonical-image")
 
-    draft = await provider.create("draft", quality="low")
-    presentation = await provider.create("lookbook", reference, quality="medium")
+    draft = await provider.generate("draft", quality="low")
+    presentation = await provider.edit("lookbook", reference, quality="medium")
 
     assert draft == b"rendered-image"
     assert presentation == b"rendered-image"
@@ -86,7 +86,7 @@ async def test_openai_image_provider_forwards_explicit_render_quality(tmp_path: 
             {
                 "model": "gpt-image-2",
                 "prompt": "draft",
-                "size": "1024x1024",
+                "size": "1024x1536",
                 "quality": "low",
             },
         ),
@@ -95,7 +95,7 @@ async def test_openai_image_provider_forwards_explicit_render_quality(tmp_path: 
             {
                 "model": "gpt-image-2",
                 "prompt": "lookbook",
-                "size": "1024x1024",
+                "size": "1024x1536",
                 "quality": "medium",
                 "image_name": "canonical.png",
             },

@@ -2,19 +2,38 @@ from functools import lru_cache
 from pathlib import Path
 
 from pydantic import Field, SecretStr
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
+LOCAL_ENV_PATH = BACKEND_ROOT / ".env"
 
 
 class Settings(BaseSettings):
     """Runtime settings loaded from environment variables and an optional local .env."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=LOCAL_ENV_PATH,
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Use this project's ignored env file before inherited shell credentials."""
+
+        del cls, settings_cls
+        return init_settings, dotenv_settings, env_settings, file_secret_settings
 
     openai_api_key: SecretStr | None = Field(default=None, alias="OPENAI_API_KEY")
     chatkit_domain_key: str | None = Field(
@@ -38,6 +57,10 @@ class Settings(BaseSettings):
     reference_catalog_database_path: Path = Field(
         default=BACKEND_ROOT / "data" / "reference-catalog.lancedb",
         alias="SOMETHINGS_ON_REFERENCE_CATALOG_DATABASE_PATH",
+    )
+    product_catalog_manifest_path: Path = Field(
+        default=BACKEND_ROOT / "seeds" / "product_inspiration.json",
+        alias="SOMETHINGS_ON_PRODUCT_CATALOG_MANIFEST_PATH",
     )
     casting_presets_path: Path = Field(
         default_factory=lambda: (
