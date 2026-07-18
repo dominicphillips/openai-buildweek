@@ -55,4 +55,5 @@ temp/
 *.log
 *.tmp
 .playwright-cli/
+.playwright-mcp/
 output/playwright/

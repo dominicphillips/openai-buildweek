@@ -12,11 +12,13 @@ The current build includes:
 - a 600-product Inspiration library—30 sourced products for each of 20 labels—indexed locally with LanceDB full-text search and complete browse facets;
 - a top-level Inspiration panel that filters real product references and pulls them beside the current design;
 - an expansive studio with pointer and keyboard pan, pointer-anchored 35–400% zoom, restrained tilt, fit/reset, and an in-bounds right-click tool menu;
+- a four-candidate compare step for each authored image change, where only the designer's choice becomes the next immutable version;
+- linked back, left, and right inspection views generated from the exact chosen canonical raster;
 - original live React/SVG interface illustrations composed with Motion and reduced-motion support, kept separate from generated design truth;
 - a separate fictional-adult Editorial layer that presents an immutable garment version without changing it; and
 - a ready OpenAI DevDay story with three real direct-OpenAI garment rasters, exact edit lineage, a real editorial raster, and a working live ChatKit edit loop.
 
-Chat stays on the left, the current design stays centered, and references remain within reach.
+Chat can collapse on the left, the current design stays centered, and candidates, technical views, editorials, and references remain distinct canvas objects.
 
 ## Run locally
 
@@ -58,7 +60,7 @@ Open `http://127.0.0.1:43173/?demo=devday` for the five-minute hackathon story. 
 2. an inside-out construction study with exposed seams and orange bartacks; and
 3. the exact Version 02 raster edited only to shorten the bomber body to a high-hip crop.
 
-Version 01 is a direct OpenAI generation. Version 02 edits Version 01's exact PNG, and Version 03 edits Version 02's exact PNG. The prepared fictional-adult editorial is a separate real `gpt-image-2` output linked to Version 03. Prompts, OpenAI request ids, hashes, and parent inputs are recorded in `__grounding/DEV_DAY_IMAGE_GENERATION.md`. A new ChatKit instruction sends the selected current raster back through the direct OpenAI edit path and appends the returned image as an immutable child.
+Version 01 is a direct OpenAI generation. Version 02 edits Version 01's exact PNG, and Version 03 edits Version 02's exact PNG. The prepared fictional-adult editorial is a separate real `gpt-image-2` output linked to Version 03. Prompts, OpenAI request ids, hashes, and parent inputs are recorded in `__grounding/DEV_DAY_IMAGE_GENERATION.md`. A new ChatKit instruction sends the selected current raster through one direct OpenAI edit request with four outputs. Those candidates stay outside version history until the designer chooses one; only the selected image becomes the immutable child and receives its technical views.
 
 John Elliott is used only as a taste signal translated into refined essentials, fabric focus, layered neutrals, and restrained proportion. The generated garments and fictional model are original project work; the app does not claim a John Elliott product, campaign, or endorsement. Selecting a new Editorial direction calls the real presentation endpoint, spends image credits, and never alters the garment version.
 

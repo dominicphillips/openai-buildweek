@@ -5,10 +5,12 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import json
 import os
 from contextlib import ExitStack
 from pathlib import Path
+from typing import NoReturn
 
 
 def parse_args() -> argparse.Namespace:
@@ -53,6 +55,27 @@ def plan(args: argparse.Namespace) -> dict[str, object]:
     }
 
 
+def fail(
+    resolved: dict[str, object],
+    *,
+    error_code: str,
+    message: str,
+    http_status: int | None = None,
+) -> NoReturn:
+    raise SystemExit(
+        json.dumps(
+            {
+                **resolved,
+                "status": "failed",
+                "error_code": error_code,
+                "http_status": http_status,
+                "message": message,
+            },
+            indent=2,
+        )
+    )
+
+
 def main() -> None:
     args = parse_args()
     validate(args)
@@ -69,15 +92,64 @@ def main() -> None:
         "output_format": args.format,
     }
 
-    encoded, request_id = run_openai(args, common)
+    from openai import APIConnectionError, APIStatusError, APITimeoutError
+
+    try:
+        result, request_id = run_openai(args, common)
+    except APIStatusError as error:
+        fail(
+            resolved,
+            error_code=error.code or error.type or f"http_{error.status_code}",
+            message=status_message(error),
+            http_status=error.status_code,
+        )
+    except APITimeoutError:
+        fail(resolved, error_code="timeout", message="The Images API request timed out.")
+    except APIConnectionError as error:
+        fail(resolved, error_code="connection_error", message=str(error))
+
+    data = getattr(result, "data", None)
+    encoded = data[0].b64_json if data else None
     if not encoded:
-        raise RuntimeError("Image API returned no base64 image")
+        fail(
+            resolved,
+            error_code="empty_response",
+            message="The Images API returned no image data.",
+        )
+    try:
+        content = base64.b64decode(encoded, validate=True)
+    except ValueError:
+        fail(
+            resolved,
+            error_code="invalid_image_data",
+            message="The Images API returned invalid base64 image data.",
+        )
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_bytes(base64.b64decode(encoded))
-    print(json.dumps({**resolved, "request_id": request_id}, indent=2))
+    args.output.write_bytes(content)
+    record = {
+        **resolved,
+        "status": "succeeded",
+        "request_id": request_id,
+        "sha256": hashlib.sha256(content).hexdigest(),
+        "response": summarize_response(result),
+    }
+    sidecar = args.output.with_name(f"{args.output.name}.json")
+    sidecar.write_text(json.dumps(record, indent=2) + "\n")
+    print(json.dumps({**record, "provenance": str(sidecar)}, indent=2))
 
 
-def run_openai(args: argparse.Namespace, common: dict[str, str]) -> tuple[str, str | None]:
+def status_message(error: object) -> str:
+    body = getattr(error, "body", None)
+    if isinstance(body, dict):
+        inner = body.get("error")
+        details = inner if isinstance(inner, dict) else body
+        message = details.get("message")
+        if isinstance(message, str) and message:
+            return message
+    return str(getattr(error, "message", error))
+
+
+def run_openai(args: argparse.Namespace, common: dict[str, str]) -> tuple[object, str | None]:
     if not os.environ.get("OPENAI_API_KEY"):
         raise SystemExit("OPENAI_API_KEY is required")
 
@@ -93,6 +165,19 @@ def run_openai(args: argparse.Namespace, common: dict[str, str]) -> tuple[str, s
             result = client.images.edit(**request)
         else:
             result = client.images.generate(**common)
-    return result.data[0].b64_json, getattr(result, "_request_id", None)
+    return result, getattr(result, "_request_id", None)
+
+
+def summarize_response(result: object) -> dict[str, object]:
+    usage = getattr(result, "usage", None)
+    return {
+        "created": getattr(result, "created", None),
+        "size": getattr(result, "size", None),
+        "quality": getattr(result, "quality", None),
+        "output_format": getattr(result, "output_format", None),
+        "usage": usage.model_dump(exclude_none=True) if usage is not None else None,
+    }
+
+
 if __name__ == "__main__":
     main()

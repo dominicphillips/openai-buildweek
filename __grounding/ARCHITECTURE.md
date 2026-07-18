@@ -6,7 +6,7 @@
 Browser — 127.0.0.1:43173
   Vite + React + TypeScript + Tailwind v4 + Motion
   ├── optional onboarding + safe local session seed
-  ├── studio canvas + immutable generated raster versions
+  ├── studio canvas + four-way candidate comparison + immutable chosen versions
   ├── clearly separated React/SVG interface illustrations
   ├── Inspiration catalog and Editorial presentation panels
   └── ChatKit surface or local read-only fallback
@@ -44,7 +44,7 @@ Blob-backed local upload previews are intentionally excluded because their objec
 
 Object names store durable garment categories such as `T-shirt`. Color, finish, fit, material, and construction belong to a `DesignVersion`; do not encode them into an object name such as `white T-shirt`.
 
-The studio keeps the design conversation on the left and the active design centered. Its transformed plane supports:
+The studio keeps the design conversation on the left and the active design centered. The conversation can collapse into a compact rail so the canvas reclaims its width. ChatKit stays mounted and becomes inert while hidden, preserving the active thread and version-bound request routing; the local collapsed preference survives reloads. A completed authored change opens a four-image comparison over the canvas; only the chosen candidate joins version history. Its transformed plane supports:
 
 - pointer drag and arrow-key pan;
 - pointer-anchored wheel zoom clamped to 35–400%;
@@ -129,26 +129,26 @@ Tools:
 
 - `analyze_inspiration` — extract neutral attributes from user-provided references;
 - `propose_design_change` — return one delta, invariants, and an image prompt plan;
-- `render_design_iteration` — resolve authoritative assets, call `gpt-image-2`, append an immutable version, and complete a persisted generation job; and
+- `render_design_iteration` — resolve authoritative assets, call `gpt-image-2` for four candidates, and complete a persisted generation job without advancing version history; and
 - `update_canvas_object` — emit a bounded client effect so the browser refetches authoritative state.
 
-Image generation is a material side effect. The UI must make it explicit, preserve the current ready version during progress or failure, and record enough metadata for lineage and undo.
+Image generation is a material side effect. The UI must make it explicit, preserve the current ready version during progress, comparison, dismissal, or failure, and record enough metadata for candidate provenance, accepted lineage, and undo.
 
 ### Raster iteration transaction
 
 The first design image and every child use different Images API operations:
 
-1. Version 01 uses `gpt-image-2` generation from the approved object brief, neutralized reference analysis, and constraints. Store the returned bytes as an immutable asset before attaching the version record.
-2. A later request resolves the asset owned by the selected current `DesignVersion`. The exact raster bytes are the edit target and the sole canonical design image in the `gpt-image-2` edit call.
-3. The edit prompt contains one requested delta and an explicit `KEEP` list for silhouette, construction, material, color, graphics, camera/view, and every other unchanged property that matters. Do not generate a child from text alone or use an older ancestor because it is convenient.
-4. Keep the parent visible while the job runs. On a complete response, persist the new asset, append a child `DesignVersion` with its prompt/settings/request metadata, then move the canvas selection to it.
-5. On any failure, mark only the job failed. Do not create a version, mutate an asset, advance the current pointer, or discard the parent.
+1. Version 01 candidates use `gpt-image-2` generation from the approved object brief, neutralized reference analysis, and constraints. Later requests resolve the asset owned by the selected `DesignVersion`; its exact raster bytes are the sole canonical edit input.
+2. The prompt contains one requested delta and an explicit `KEEP` list for silhouette, construction, material, color, graphics, camera/view, and every other unchanged property that matters. Do not generate from text alone or substitute another ancestor.
+3. Make one Image API request with `n=4`. Normalize and persist all four outputs as a durable candidate set tied to one job and parent; do not append versions yet.
+4. Keep the parent visible while the designer compares the set. Choosing one candidate atomically appends the child `DesignVersion`, dismisses its siblings, and moves canvas selection. Keeping the current version dismisses the whole set.
+5. Only the selected candidate receives concurrent back, left, and right technical views. On any generation, persistence, selection, or derived-view failure, do not mutate or discard the previous canonical version.
 
 Inspiration images help the agent extract neutral traits before iteration. They are not competing canonical design images in the mutation call. Full rules and an acceptance checklist live in `__grounding/IMAGE_ITERATION.md`.
 
 ## Design truth and presentation boundary
 
-SQLite stores the design domain separately from ChatKit conversation items. Core records include `Project`, `Asset`, `DesignVersion`, `StyleProfile`, `CanvasNode`, `GenerationJob`, and `PresentationRender`.
+SQLite stores the design domain separately from ChatKit conversation items. Core records include `Project`, `Asset`, `GenerationJob`, `DesignCandidate`, `DesignVersion`, `TechnicalView`, `CanvasNode`, and `PresentationRender`.
 
 A `DesignVersion` is immutable garment truth. A `PresentationRender` links to exactly one design version and stores a preset/control snapshot, assembled prompt, status, and separate generated asset. Changing casting, pose, place, or light creates another presentation; it never appends or overwrites a garment version. A real presentation request requires an existing canonical generated garment asset and returns `409` before generation when that invariant is missing.
 
@@ -173,6 +173,11 @@ Do not commit runtime databases, uploads, generated assets, logs, credentials, o
 - `GET /api/projects/{project_id}` — authoritative project, canvas, version, and presentation snapshot
 - `PUT /api/projects/{project_id}` — create or update the bounded project seed
 - `POST /api/projects/{project_id}/versions` — generate the first raster or edit an exact selected raster into a new immutable child
+- `POST /api/projects/{project_id}/candidate-sets` — request four draft rasters from one exact prompt and parent without creating a version
+- `POST /api/projects/{project_id}/candidate-sets/{job_id}/select/{candidate_id}` — atomically promote one candidate into a canonical version
+- `POST /api/projects/{project_id}/candidate-sets/{job_id}/dismiss` — discard a candidate set while preserving the current version
+- `GET /api/projects/{project_id}/versions/{version_id}/technical-views` — list back, left, and right views derived from one canonical version
+- `POST /api/projects/{project_id}/versions/{version_id}/technical-views/{role}` — render or retry one derived view from the exact canonical raster
 - `POST /api/projects/{project_id}/references` — validate, sanitize, and ingest a local image
 - `POST /api/projects/{project_id}/reference-links` — save a link card without server-fetching its URL
 - `GET /api/assets/{asset_id}` — serve an owned local development asset

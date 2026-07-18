@@ -82,12 +82,14 @@ Good parallel work includes research, UX copy, architecture review, isolated com
 - Preview URL: `http://127.0.0.1:43173` with a strict port.
 - The interface is dark by default, typographic, tactile, and editorial. Prefer custom components and intentional composition over dashboard patterns.
 - Support keyboard navigation, visible focus, semantic controls, sufficient contrast, reduced motion, and an immediate route past optional music/breathing rituals.
-- Product text starts at `1rem` / 16px. Do not shrink metadata, captions, SVG labels, controls, or responsive layouts below the base size; make more space or remove secondary copy instead.
+- Product text starts at `1rem` / 16px. Do not shrink metadata, captions, SVG labels, controls, version history, or responsive layouts below the base size; make more space or remove secondary copy instead.
 - Action-button labels stay on one line. Give them enough width or shorten the label; never stack a close mark, shortcut, count, or arrow beneath the action.
 - Every visible tag, eyebrow, badge, count, and status must help the designer decide, compare, or act. Do not surface implementation terms, model/provider names, compliance reassurance, provenance boilerplate, or decorative taxonomy in the interface.
 - Persist onboarding completion and the last safe project seed locally. A returning designer reopens the studio; only an explicit replay should restart the optional ritual.
-- The workspace keeps chat on the left and the current design centered. References collect around the design as movable piles on an expansive canvas.
-- The canvas must support pointer and keyboard pan, pointer-anchored zoom from 35–400%, restrained tilt, reset/fit, and an in-bounds right-click tool menu. Every displayed tool must produce an observable result.
+- The workspace keeps chat on the left and the current design centered. Chat is collapsible without remounting or losing conversation/version context, and the canvas expands into the released space. References collect around the design as movable piles on an expansive canvas.
+- The canvas must support pointer and keyboard pan, pointer-anchored zoom from 35–400%, restrained tilt, reset/fit, and an in-bounds right-click tool menu. Native browser image dragging is disabled so starting a gesture on any raster still pans or tilts the canvas. Every displayed tool must produce an observable result.
+- The selected canonical `DesignVersion` raster always remains a visible primary canvas object. Editorials are separate linked canvas objects beside it; they never replace, cover, blur, or become the raw design.
+- A completed authored change opens a four-image candidate comparison outside ChatKit. Candidate assets are drafts: they do not appear in version history, become edit parents, or receive technical views until the designer explicitly chooses one. `Keep current` dismisses the set without changing the canvas or lineage.
 
 ## Live illustration contract
 
@@ -109,11 +111,12 @@ Live illustrations are interface art, not garment truth. They must never occupy 
 - API URL: `http://127.0.0.1:43174` with a strict port.
 - Start with one fashion design agent and narrow function tools. Add specialists only after the single-agent flow demonstrates a real need.
 - Use `gpt-5.6` for the guided agent and `gpt-image-2` for direct image generation/editing unless current official guidance or evals justify a change.
-- Create the first canonical design raster with a real `gpt-image-2` generation call. Every later garment change must call the Images API edit path with the exact current immutable raster as its canonical image input, one requested delta, and explicit invariants; never recreate a later version from text alone.
-- Treat each successful returned raster as a new immutable `DesignVersion` with parent lineage. Keep the parent active and intact until the child succeeds, and preserve it on billing, quota, authentication, moderation, timeout, or other provider failure. Follow `__grounding/IMAGE_ITERATION.md`.
+- Create the first canonical design study with the real `gpt-image-2` Image API. Every later garment change must call the edit path with the exact selected immutable raster as its sole canonical image input, one requested delta, and explicit invariants; never recreate a later version from text alone.
+- Request four candidates in one Image API call with `n=4`. Persist the returned rasters as a durable candidate set tied to the same generation job, prompt, and exact parent. Candidates are not versions. Only the designer's atomic selection promotes one candidate asset into a new immutable `DesignVersion`; dismissing the set leaves the parent active and unchanged. Preserve the parent on billing, quota, authentication, moderation, timeout, malformed output, or persistence failure. Follow `__grounding/IMAGE_ITERATION.md`.
+- After a selected candidate becomes a canonical version, create three medium-quality `TechnicalViewRecord` edits from that exact chosen raster: back, left side, and right side. Unselected candidates receive no derived views. Run the three calls concurrently, preserve the canonical version through partial failure, expose per-view status, and allow a failed or missing view to be retried without regenerating the garment.
 - The LanceDB reference catalog is local, inspectable, and seeded only with project-authored illustrations. Label associations describe neutral trait overlap and never claim an official product, affiliation, or endorsement.
 - The Inspiration library is a separate LanceDB catalog backed by `backend/seeds/product_inspiration.json`: 30 real sourced products for each of 20 labels. Enforce unique product, source, and image URLs; expose complete brand/category facets; return at most 30 contextual results per browse request; and retain product-page provenance. Never replace real product results with unsourced illustration cards.
-- A model/lookbook render is a separate `PresentationRender` linked to one immutable `DesignVersion`; changing casting, pose, place, or light must never create or overwrite a garment version. Follow `__grounding/CASTING.md`.
+- An Editorial render is a separate `PresentationRender` linked to one immutable `DesignVersion`; changing casting, pose, place, or light must never create or overwrite a garment version. The UI places it beside the canonical raster instead of swapping it into the canonical frame. Follow `__grounding/CASTING.md`.
 - Expose `/api/health`. Keep API failures legible and never leak upstream error bodies or credentials to the browser.
 
 ## Canonical demo

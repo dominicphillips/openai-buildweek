@@ -205,7 +205,9 @@ the designer whether the product will play music or what to do.
 ## Studio copy
 
 - Orientation: `Chat left. Object center. References around it.`
+- Chat visibility: `COLLAPSE CHAT · OPEN CHAT`
 - Composer: `Keep ___. Change ___.`
+- Edit intents: `Fit · Material · Construction · Finish`
 - Empty chat: `State what stays. Then name one change.`
 - Empty canvas history: `No edits yet. Name what stays. Name one change.`
 - Viewport help: `Drag to arrange · scroll to scale`

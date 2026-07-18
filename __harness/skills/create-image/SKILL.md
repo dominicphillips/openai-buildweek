@@ -5,7 +5,7 @@ description: Generate new raster concepts or edit user-provided design and portr
 
 # Create Image
 
-Use `scripts/create_image.py` for a small, portable direct OpenAI Image API workflow. It reads `OPENAI_API_KEY` and never stores or prints the key.
+Use `scripts/create_image.py` for a small, portable direct OpenAI Image API workflow. It reads `OPENAI_API_KEY` and never stores or prints the key. A successful run saves the image and a provenance sidecar next to it (`<output>.json` with the resolved settings, request id, SHA-256, and token usage). A failed API call prints a structured record with `status: failed` and the provider `error_code`, and exits non-zero.
 
 ## Workflow
 
@@ -14,7 +14,7 @@ Use `scripts/create_image.py` for a small, portable direct OpenAI Image API work
 3. Run `--dry-run` and inspect the resolved operation, references, size, quality, and output path.
 4. Generate without references or edit with one or more `--reference` files. Use the current design as the first reference for iterative work.
 5. Inspect the output for identity, construction, text, and unintended changes. Reject weak results instead of silently shipping them.
-6. Record model, prompt, inputs, settings, and output in the calling project's provenance data.
+6. Adopt an accepted result by copying its `<output>.json` sidecar (model, prompt, inputs, settings, request id, SHA-256, usage) into the calling project's provenance data.
 
 ## Commands
 
@@ -46,4 +46,4 @@ Read `references/prompting.md` before writing a fashion edit or portrait prompt.
 - Do not set `input_fidelity`; `gpt-image-2` already processes references at high fidelity.
 - Do not request transparency; `gpt-image-2` does not support it.
 - Keep source portraits and generated portraits clearly labeled. Never present an illustrated avatar as a documentary photograph.
-- Treat moderation blocks and invalid inputs as user-correctable errors; do not retry the same request indefinitely.
+- Treat moderation blocks and invalid inputs as user-correctable errors; report the failure record's `error_code` (billing, quota, moderation) honestly and do not retry the same request indefinitely.
