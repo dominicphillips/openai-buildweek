@@ -490,12 +490,10 @@ export function Ritual({
               <div className="threshold-copy">
                 <p className="eyebrow">Your starting point</p>
                 <h1>
-                  Keep what matters.
-                  <br />
-                  <span>Change one thing.</span>
+                  Start with the garment.
                 </h1>
                 <p className="stage-body">
-                  The object stays centered. Use the conversation on the left while your references gather around it.
+                  Pull references beside it. Edit from the latest version.
                 </p>
                 <button className="primary-action" type="button" onClick={() => setStage('studio')}>
                   Open the studio <Arrow />

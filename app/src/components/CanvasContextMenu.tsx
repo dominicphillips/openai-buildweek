@@ -83,7 +83,6 @@ export function CanvasContextMenu({ x, y, actions, onClose }: CanvasContextMenuP
           </button>
         ))}
       </div>
-      <footer>Right-click anywhere to move this menu</footer>
     </div>
   )
 }

@@ -178,7 +178,7 @@ export function GarmentSpecPanel({
           <div className="garment-spec-scroll" role="region" aria-label="Garment specification details" tabIndex={0}>
             <div className="garment-spec-panel__body">
               <section className="garment-spec-change" aria-labelledby="garment-change-label">
-                <span id="garment-change-label">CHANGE / CURRENT VERSION</span>
+                <span id="garment-change-label">CURRENT CHANGE</span>
                 <p>{requestedChange?.trim() || 'Not set'}</p>
               </section>
 
@@ -209,29 +209,29 @@ export function GarmentSpecPanel({
               )}
 
               <section className="garment-spec-list" aria-labelledby="garment-keep-label">
-                <h3 id="garment-keep-label">KEEP / INVARIANTS</h3>
+                <h3 id="garment-keep-label">KEEP</h3>
                 <ListOrUnknown items={demoSpec?.keep ?? version?.preserve} />
               </section>
 
               <section className="garment-spec-list garment-spec-list--avoid" aria-labelledby="garment-avoid-label">
-                <h3 id="garment-avoid-label">AVOID / OUT OF SCOPE</h3>
+                <h3 id="garment-avoid-label">AVOID</h3>
                 <ListOrUnknown items={demoSpec?.avoid ?? version?.avoid} />
               </section>
 
               <footer className="garment-spec-panel__footer">
                 <strong>
                   {hasCanonicalRaster
-                    ? 'CURRENT VERSION / HELD'
+                    ? 'CURRENT VERSION'
                     : demoVersion
-                      ? 'PREPARED VERSION / READY TO REVIEW'
-                      : 'FIRST VERSION / NOT MADE'}
+                      ? 'PREPARED VERSION'
+                      : 'NO IMAGE YET'}
                 </strong>
                 <p>
                   {hasCanonicalRaster
-                    ? 'The next move begins here. The current version remains unchanged while the new one is made.'
+                    ? 'New edits use this image as their source.'
                     : demoVersion
-                      ? 'Use this look as a starting point, then describe the first change you want to own.'
-                      : 'Describe the garment you want to make before defining the next change.'}
+                      ? 'Review this version or describe one change.'
+                      : 'Describe the first garment to make.'}
                 </p>
               </footer>
             </div>

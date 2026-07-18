@@ -7,11 +7,22 @@ type ChatDockProps = {
   referenceCount: number
   activeVersionId?: string
   externalBusy?: boolean
+  interactionLocked?: boolean
   onProjectRefresh: (createdVersion?: { id: string; number: number }) => void | Promise<void>
   onWorkingChange?: (working: boolean) => void
 }
 
 type AgentStatus = 'checking' | 'online' | 'offline'
+
+const chatDockCollapsedStorageKey = 'somethings-on:chat-collapsed:v1'
+
+function loadChatDockCollapsed() {
+  try {
+    return window.localStorage.getItem(chatDockCollapsedStorageKey) === 'true'
+  } catch {
+    return false
+  }
+}
 
 const editIntents = [
   {
@@ -42,6 +53,7 @@ export function ChatDock({
   referenceCount,
   activeVersionId,
   externalBusy = false,
+  interactionLocked = false,
   onProjectRefresh,
   onWorkingChange,
 }: ChatDockProps) {
@@ -49,8 +61,30 @@ export function ChatDock({
   const [domainKey, setDomainKey] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
   const [responding, setResponding] = useState(false)
+  const [collapsed, setCollapsed] = useState(loadChatDockCollapsed)
+  const openChatButton = useRef<HTMLButtonElement>(null)
+  const collapseChatButton = useRef<HTMLButtonElement>(null)
+  const focusAfterToggle = useRef(false)
   const responseEndTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingCreatedVersion = useRef<{ id: string; number: number } | undefined>(undefined)
+  const pendingCandidateSet = useRef(false)
+
+  const setChatCollapsed = (nextCollapsed: boolean) => {
+    focusAfterToggle.current = true
+    setCollapsed(nextCollapsed)
+    try {
+      window.localStorage.setItem(chatDockCollapsedStorageKey, String(nextCollapsed))
+    } catch {
+      // The preference is optional when storage is unavailable.
+    }
+  }
+
+  useEffect(() => {
+    if (!focusAfterToggle.current) return
+    focusAfterToggle.current = false
+    const nextButton = collapsed ? openChatButton.current : collapseChatButton.current
+    nextButton?.focus()
+  }, [collapsed])
 
   const cancelResponseEnd = useCallback(() => {
     if (!responseEndTimer.current) return
@@ -113,7 +147,6 @@ export function ChatDock({
       radius: 'sharp',
       density: 'compact',
       color: {
-        surface: { background: '#080807', foreground: '#171715' },
         accent: { primary: '#ff4c12', level: 2 },
         grayscale: { hue: 30, tint: 1, shade: -2 },
       },
@@ -131,7 +164,13 @@ export function ChatDock({
     },
     threadItemActions: { feedback: false, retry: true },
     onEffect: ({ name, data }) => {
+      if (name === 'design.candidates.created') {
+        pendingCandidateSet.current = true
+        pendingCreatedVersion.current = undefined
+        return
+      }
       if (name !== 'design.version.created') return
+      pendingCandidateSet.current = false
       const versionId = typeof data?.version_id === 'string' ? data.version_id : ''
       const versionNumber =
         typeof data?.version_number === 'number' ? data.version_number : Number.NaN
@@ -143,6 +182,7 @@ export function ChatDock({
     onResponseStart: () => {
       cancelResponseEnd()
       pendingCreatedVersion.current = undefined
+      pendingCandidateSet.current = false
       setErrorMessage('')
       setResponding(true)
       onWorkingChange?.(true)
@@ -155,6 +195,7 @@ export function ChatDock({
         void (async () => {
           const createdVersion = pendingCreatedVersion.current
           pendingCreatedVersion.current = undefined
+          pendingCandidateSet.current = false
           try {
             await onProjectRefresh(createdVersion)
           } finally {
@@ -165,73 +206,120 @@ export function ChatDock({
     },
     onError: ({ error }) => {
       cancelResponseEnd()
+      const shouldRefreshCandidates = pendingCandidateSet.current
       pendingCreatedVersion.current = undefined
+      pendingCandidateSet.current = false
       setResponding(false)
-      onWorkingChange?.(false)
       setErrorMessage(error.message || 'The studio conversation disconnected.')
+      if (shouldRefreshCandidates) {
+        void (async () => {
+          try {
+            await onProjectRefresh()
+          } finally {
+            onWorkingChange?.(false)
+          }
+        })()
+      } else {
+        onWorkingChange?.(false)
+      }
     },
   })
 
   return (
-    <aside className="chat-dock" aria-label="Design conversation">
-      <div className="chat-dock__header">
-        <strong>DESIGN</strong>
-        {responding || externalBusy ? <span>WORKING</span> : null}
-      </div>
-
-      <div className="edit-intent-bar" aria-label="Start one exact garment change">
-        <span>CHANGE ONE</span>
-        <div>
-          {editIntents.map((intent) => (
-            <button
-              type="button"
-              key={intent.label}
-              disabled={status !== 'online' || responding || externalBusy}
-              onClick={() => {
-                void setComposerValue({ text: intent.prompt }).then(() => focusComposer())
-              }}
-            >
-              {intent.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {status === 'online' ? (
-        <div
-          className={`chatkit-surface ${externalBusy ? 'is-locked' : ''}`}
-          aria-busy={responding || externalBusy}
-          inert={externalBusy ? true : undefined}
+    <aside
+      className={`chat-dock ${collapsed ? 'is-collapsed' : ''}`}
+      aria-label="Design conversation"
+      inert={interactionLocked ? true : undefined}
+    >
+      <div className="chat-dock__rail">
+        <button
+          ref={openChatButton}
+          type="button"
+          aria-expanded="false"
+          aria-controls="design-chat-panel"
+          onClick={() => setChatCollapsed(false)}
         >
-          <ChatKit key={projectId} control={control} className="chatkit-frame" />
-        </div>
-      ) : (
-        <div className="chat-fallback">
-          <div className="fallback-thread">
-            <p className="fallback-meta">SOMETHINGS-ON / 00:01</p>
-            <p>
-              Let’s begin with your {objectName}. What do you want to carry over
-              {referenceCount > 0
-                ? ' from the references: proportion, fabric, construction, mood, or something else?'
-                : ': proportion, fabric, construction, mood, or something else?'}
-            </p>
-          </div>
-          <div className="agent-setup-card">
-            <span>DESIGN GUIDE PAUSED</span>
-            <p>
-              The conversation is taking a moment. Nothing changed. Try again.
-            </p>
-            <button type="button" onClick={() => void checkBackend()}>
-              Try again ↗
+          OPEN CHAT
+        </button>
+      </div>
+
+      <div
+        id="design-chat-panel"
+        className="chat-dock__expanded"
+        aria-hidden={collapsed ? true : undefined}
+        inert={collapsed ? true : undefined}
+      >
+        <div className="chat-dock__header">
+          <strong>DESIGN</strong>
+          <div>
+            {responding || externalBusy ? <span>WORKING</span> : null}
+            <button
+              ref={collapseChatButton}
+              type="button"
+              aria-expanded="true"
+              aria-controls="design-chat-panel"
+              onClick={() => setChatCollapsed(true)}
+            >
+              COLLAPSE CHAT
             </button>
           </div>
-          {errorMessage && <p className="chat-error" role="alert">{errorMessage}</p>}
-          <div className="fallback-composer" aria-disabled="true">
-            <span>Keep ___. Change ___.</span>
-            <i>↗</i>
+        </div>
+
+        <div className="edit-intent-bar" aria-label="Start one exact garment change">
+          <div>
+            {editIntents.map((intent) => (
+              <button
+                type="button"
+                key={intent.label}
+                disabled={
+                  status !== 'online' || responding || externalBusy || interactionLocked
+                }
+                onClick={() => {
+                  void setComposerValue({ text: intent.prompt }).then(() => focusComposer())
+                }}
+              >
+                {intent.label}
+              </button>
+            ))}
           </div>
         </div>
-      )}
+
+        {status === 'online' ? (
+          <div
+            className={`chatkit-surface ${externalBusy || interactionLocked ? 'is-locked' : ''}`}
+            aria-busy={responding || externalBusy}
+            inert={externalBusy || interactionLocked ? true : undefined}
+          >
+            <ChatKit key={`${projectId}:dark-composer-v2`} control={control} className="chatkit-frame" />
+          </div>
+        ) : (
+          <div className="chat-fallback">
+            <div className="fallback-thread">
+              <p className="fallback-meta">SOMETHINGS-ON / 00:01</p>
+              <p>
+                Let’s begin with your {objectName}. What do you want to carry over
+                {referenceCount > 0
+                  ? ' from the references: proportion, fabric, construction, mood, or something else?'
+                  : ': proportion, fabric, construction, mood, or something else?'}
+              </p>
+            </div>
+            <div className="agent-setup-card">
+              <span>DESIGN GUIDE PAUSED</span>
+              <p>
+                The conversation is taking a moment. Nothing changed. Try again.
+              </p>
+              <button type="button" onClick={() => void checkBackend()}>
+                Try again ↗
+              </button>
+            </div>
+            {errorMessage && <p className="chat-error" role="alert">{errorMessage}</p>}
+            <div className="fallback-composer" aria-disabled="true">
+              <span>Keep ___. Change ___.</span>
+              <i>↗</i>
+            </div>
+          </div>
+        )}
+      </div>
     </aside>
   )
 }

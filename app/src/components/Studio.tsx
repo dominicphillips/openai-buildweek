@@ -9,11 +9,17 @@ import {
   type PointerEvent,
 } from 'react'
 import type { ReferenceCatalogItem, ReferenceItem, StudioSeed } from '../lib/types'
+import {
+  CandidatePicker,
+  type DesignCandidateRecord,
+  type SelectedCandidateVersion,
+} from './CandidatePicker'
 import { CanvasContextMenu, type CanvasMenuAction } from './CanvasContextMenu'
 import { CastingPanel, type PresentationRender } from './CastingPanel'
 import { ChatDock } from './ChatDock'
 import { GarmentSpecPanel } from './GarmentSpecPanel'
 import { InspirationPanel } from './InspirationPanel'
+import { TechnicalViews, type TechnicalViewRecord } from './TechnicalViews'
 
 type StudioProps = {
   seed: StudioSeed
@@ -43,7 +49,9 @@ type BackendVersion = {
 
 type ProjectSnapshot = {
   versions?: BackendVersion[]
+  technical_views?: TechnicalViewRecord[]
   presentations?: PresentationRender[]
+  candidates?: DesignCandidateRecord[]
   link_references?: Array<{ url: string }>
 }
 
@@ -64,7 +72,6 @@ const demoVersions: Array<{
   code: string
   label: string
   change: string
-  keep: string
   imageUrl: string
 }> = [
   {
@@ -72,7 +79,6 @@ const demoVersions: Array<{
     code: 'WASH',
     label: 'Washed flight',
     change: 'Washed charcoal / full flight length',
-    keep: 'T-shirt / camera / pose',
     imageUrl: '/devday/devday-look-v1.png',
   },
   {
@@ -80,7 +86,6 @@ const demoVersions: Array<{
     code: 'SEAM',
     label: 'Inside-out',
     change: 'Exposed seams / orange bartacks',
-    keep: 'Flight shape / T-shirt / camera / pose',
     imageUrl: '/devday/devday-look-v2.png',
   },
   {
@@ -88,7 +93,6 @@ const demoVersions: Array<{
     code: 'CROP',
     label: 'High-hip crop',
     change: 'High-hip crop / body −90 mm',
-    keep: 'Seams / T-shirt / camera / pose',
     imageUrl: '/devday/devday-look-v3.png',
   },
 ]
@@ -112,6 +116,30 @@ const latestReadyPresentation = (
         Boolean(candidate.asset_url) &&
         candidate.design_version_id === versionId,
     )
+
+const latestOpenCandidateSet = (candidates: DesignCandidateRecord[]) => {
+  const grouped = new Map<string, DesignCandidateRecord[]>()
+  for (const candidate of candidates) {
+    const current = grouped.get(candidate.generation_job_id) ?? []
+    current.push(candidate)
+    grouped.set(candidate.generation_job_id, current)
+  }
+
+  return [...grouped.values()]
+    .filter(
+      (candidateSet) =>
+        candidateSet.some((candidate) => candidate.status === 'ready') &&
+        !candidateSet.some((candidate) => candidate.status === 'selected') &&
+        !candidateSet.every((candidate) => candidate.status === 'dismissed'),
+    )
+    .sort((left, right) => {
+      const leftUpdated = [...left]
+        .sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0]?.updated_at
+      const rightUpdated = [...right]
+        .sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0]?.updated_at
+      return (rightUpdated ?? '').localeCompare(leftUpdated ?? '')
+    })[0]
+}
 
 const studioViewStorageKey = (projectId: string) =>
   `somethings-on:studio-view:${projectId}:v1`
@@ -191,7 +219,7 @@ function ReferenceCard({
       </button>
       <div className="canvas-reference__image">
         {reference.previewUrl ? (
-          <img src={reference.previewUrl} alt={reference.name} />
+          <img src={reference.previewUrl} alt={reference.name} draggable={false} />
         ) : (
           <span className="reference-link-mark" aria-hidden="true">↗</span>
         )}
@@ -213,7 +241,12 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
     initialView.demoVersion,
   )
   const [backendVersions, setBackendVersions] = useState<BackendVersion[]>([])
+  const [backendTechnicalViews, setBackendTechnicalViews] = useState<TechnicalViewRecord[]>([])
+  const [autoPollingTechnicalVersionId, setAutoPollingTechnicalVersionId] = useState<string | null>(
+    null,
+  )
   const [backendPresentations, setBackendPresentations] = useState<PresentationRender[]>([])
+  const [backendCandidates, setBackendCandidates] = useState<DesignCandidateRecord[]>([])
   const [selection, setSelection] = useState<StudioSelection>({
     versionId: initialView.versionId,
     presentationId: initialView.presentationId,
@@ -296,10 +329,14 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
       } = {},
     ) => {
       const versions = snapshot.versions ?? []
+      const technicalViews = snapshot.technical_views ?? []
       const presentations = snapshot.presentations ?? []
+      const candidates = snapshot.candidates ?? []
       const newest = newestVersion(versions, true) ?? newestVersion(versions)
       setBackendVersions(versions)
+      setBackendTechnicalViews(technicalViews)
       setBackendPresentations(presentations)
+      setBackendCandidates(candidates)
       serverReferenceUrls.current = new Set(
         (snapshot.link_references ?? []).map((reference) => reference.url),
       )
@@ -363,7 +400,7 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
     setGenerationError('')
     setGenerationWorking(true)
     try {
-      const response = await fetch(`/api/projects/${seed.projectId}/versions`, {
+      const response = await fetch(`/api/projects/${seed.projectId}/candidate-sets`, {
         method: 'POST',
         headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -372,9 +409,9 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
           avoid: ['logos or readable text', 'a person or extra styling'],
         }),
       })
-      const body = (await response.json()) as BackendVersion & { detail?: string }
+      const body = (await response.json()) as DesignCandidateRecord[] & { detail?: string }
       if (!response.ok) throw new Error(body.detail || 'The first version did not finish.')
-      await refreshProject({ preferredVersionId: body.id, showCanonical: true })
+      await refreshProject({ showCanonical: true })
     } catch (error) {
       initialGenerationProjects.current.delete(generationKey)
       setGenerationError(
@@ -406,7 +443,10 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
         applyProjectSnapshot(snapshot, {
           restoreLatestPresentation: !initialView.found,
         })
-        if (!(snapshot.versions ?? []).some((version) => Boolean(version.asset_url))) {
+        if (
+          !(snapshot.versions ?? []).some((version) => Boolean(version.asset_url)) &&
+          !latestOpenCandidateSet(snapshot.candidates ?? [])
+        ) {
           await createInitialVersion()
         }
       })
@@ -622,6 +662,13 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
       onSelect: openCasting,
     },
     {
+      id: 'spec',
+      label: 'Open garment spec',
+      detail: 'Review construction and measurements',
+      shortcut: 'S',
+      onSelect: openSpec,
+    },
+    {
       id: 'inspect',
       label: 'Inspect garment',
       detail: 'Center at 170%',
@@ -654,7 +701,51 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
     backendVersions.find((item) => item.id === selection.versionId) ??
     newestVersion(backendVersions, true) ??
     newestVersion(backendVersions)
-  const presentation =
+  const activeCandidateSet = latestOpenCandidateSet(backendCandidates)
+  const selectedTechnicalViews = backendVersion
+    ? backendTechnicalViews.filter((view) => view.design_version_id === backendVersion.id)
+    : []
+  const hasTechnicalViewsInFlight =
+    backendVersion?.id === autoPollingTechnicalVersionId &&
+    selectedTechnicalViews.some((view) => view.status === 'pending' || view.status === 'running')
+  const selectedTechnicalViewsSettled =
+    selectedTechnicalViews.length >= 3 &&
+    selectedTechnicalViews.every((view) => view.status === 'ready' || view.status === 'failed')
+
+  useEffect(() => {
+    if (!backendVersion || !hasTechnicalViewsInFlight) return
+    const timer = window.setInterval(() => {
+      void refreshProject()
+    }, 2400)
+    return () => window.clearInterval(timer)
+  }, [backendVersion, hasTechnicalViewsInFlight, refreshProject])
+
+  useEffect(() => {
+    if (!autoPollingTechnicalVersionId || backendVersion?.id !== autoPollingTechnicalVersionId) {
+      return
+    }
+    if (selectedTechnicalViewsSettled) {
+      setAutoPollingTechnicalVersionId(null)
+    }
+  }, [autoPollingTechnicalVersionId, backendVersion?.id, selectedTechnicalViewsSettled])
+
+  useEffect(() => {
+    if (!activeCandidateSet) return
+    setInspirationOpen(false)
+    setCastingOpen(false)
+    setSpecOpen(false)
+    setContextMenu(null)
+  }, [activeCandidateSet])
+
+  const linkedPresentations = backendVersion
+    ? backendPresentations.filter(
+        (candidate) =>
+          candidate.design_version_id === backendVersion.id &&
+          candidate.status === 'ready' &&
+          Boolean(candidate.asset_url),
+      ).reverse()
+    : []
+  const selectedPresentation =
     backendPresentations.find(
       (candidate) =>
         candidate.id === selection.presentationId &&
@@ -662,40 +753,23 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
         candidate.status === 'ready' &&
         Boolean(candidate.asset_url),
     ) ?? null
-  const hasBackendRender = Boolean(backendVersion?.asset_url)
   const hasAnyBackendRaster = backendVersions.some((item) => Boolean(item.asset_url))
   const usePreparedDemo = seed.demoMode && !hasAnyBackendRaster
   const demoVersion = demoVersions[activeDemoVersion - 1]
-  const seededDemoVersion = seed.demoMode
-    ? demoVersions.find((item) => item.number === backendVersion?.version_number)
-    : undefined
   const demoImageFailed = failedDemoImages.includes(demoVersion.imageUrl)
-  const keepNote = usePreparedDemo
-    ? demoVersion.keep
-    : (seededDemoVersion?.keep ?? backendVersion?.preserve?.[0]?.trim())
-  const changeNote = usePreparedDemo
-    ? demoVersion.change
-    : (seededDemoVersion?.change ?? backendVersion?.requested_change.trim())
   const railVersions = backendVersions.some((item) => item.status === 'ready' && item.asset_url)
     ? backendVersions
         .filter((item) => item.status === 'ready' && item.asset_url)
         .sort((left, right) => left.version_number - right.version_number)
     : [{ id: 'base', version_number: 1, requested_change: 'No raster yet', status: 'concept' as const }]
-  const workingState = editorialDirection
+  const workingState = generationWorking && !activeCandidateSet
     ? {
-        key: 'editorial',
+        key: 'generation',
         title: 'WORKING ON IT',
-        detail: `EDITORIAL / ${editorialDirection.toUpperCase()}`,
-        note: 'Pose, place, and light are changing. The garment stays.',
+        detail: 'APPLYING YOUR CHANGE',
+        note: 'The current version stays here until the next draft is ready.',
       }
-    : generationWorking
-      ? {
-          key: 'generation',
-          title: 'WORKING ON IT',
-          detail: 'APPLYING YOUR CHANGE',
-          note: 'The current version stays here until the next draft is ready.',
-        }
-      : null
+    : null
 
   return (
     <main className="studio-shell">
@@ -705,12 +779,13 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
         referenceCount={seed.references.length}
         activeVersionId={backendVersion?.asset_url ? backendVersion.id : undefined}
         externalBusy={Boolean(editorialDirection)}
+        interactionLocked={generationWorking || Boolean(activeCandidateSet)}
         onProjectRefresh={handleProjectRefresh}
         onWorkingChange={setGenerationWorking}
       />
 
       <section className="studio-space">
-        <header className="studio-header">
+        <header className="studio-header" inert={activeCandidateSet ? true : undefined}>
           <div className="studio-wordmark">
             SOMETHINGS<span>—ON</span>
           </div>
@@ -746,7 +821,13 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
             >
               Spec
             </button>
-            <button type="button" onClick={onReset}>New garment</button>
+            <button
+              type="button"
+              disabled={generationWorking || Boolean(activeCandidateSet) || Boolean(editorialDirection)}
+              onClick={onReset}
+            >
+              New garment
+            </button>
           </div>
         </header>
 
@@ -763,7 +844,7 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
           open={castingOpen}
           projectId={seed.projectId}
           designVersionId={backendVersion?.asset_url ? backendVersion.id : undefined}
-          selectedPresetId={presentation?.preset_id}
+          selectedPresetId={selectedPresentation?.preset_id}
           blocked={generationWorking}
           onPreviewPreset={() => undefined}
           onPresentationReady={(nextPresentation) => {
@@ -791,6 +872,7 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
         <div
           ref={canvasRef}
           className="canvas-viewport"
+          inert={activeCandidateSet ? true : undefined}
           tabIndex={0}
           aria-label="Infinite design canvas. Drag or use arrow keys to pan, scroll to zoom, and shift-scroll or bracket keys to tilt. Right-click for canvas tools."
           onKeyDown={onKeyboard}
@@ -798,6 +880,7 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
           onPointerMove={pan}
           onPointerUp={stopPan}
           onPointerCancel={stopPan}
+          onDragStart={(event) => event.preventDefault()}
           onContextMenu={openContextMenu}
         >
           <motion.div
@@ -825,27 +908,13 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: reduceMotion ? 0 : 0.2, duration: reduceMotion ? 0 : 0.7 }}
             >
-              {presentation?.asset_url ? (
-                <figure className="presentation-study">
-                  <img
-                    src={presentation.asset_url}
-                    alt={`Editorial presentation in ${presentationLabel(presentation.preset_id)}`}
-                  />
-                  <figcaption>
-                    <span>
-                      {backendVersion
-                        ? `EDITORIAL / VERSION ${String(backendVersion.version_number).padStart(2, '0')}`
-                        : 'EDITORIAL'}
-                    </span>
-                    <strong>DESIGN UNCHANGED</strong>
-                  </figcaption>
-                </figure>
-              ) : backendVersion?.asset_url ? (
+              {backendVersion?.asset_url ? (
                 <figure className="presentation-study design-version-study">
                   <img
                     key={backendVersion.asset_url}
                     src={backendVersion.asset_url}
                     alt={`Current design version ${backendVersion.version_number}: ${backendVersion.requested_change}`}
+                    draggable={false}
                   />
                   <figcaption>
                     <span>DESIGN / VERSION {String(backendVersion.version_number).padStart(2, '0')}</span>
@@ -858,6 +927,7 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
                     key={demoVersion.imageUrl}
                     src={demoVersion.imageUrl}
                     alt={`Generated DevDay design study, version ${activeDemoVersion}: ${demoVersion.label} distressed bomber and T-shirt`}
+                    draggable={false}
                     onError={() => {
                       setFailedDemoImages((current) =>
                         current.includes(demoVersion.imageUrl)
@@ -903,28 +973,90 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
                     <span>{workingState.title}</span>
                     <strong>{workingState.detail}</strong>
                     <p>{workingState.note}</p>
-                    <div className="canvas-work-state__mark" aria-hidden="true">
-                      <i /><i /><i />
-                    </div>
+                    <span className="loading-spinner" aria-hidden="true" />
                   </motion.div>
                 )}
               </AnimatePresence>
             </motion.div>
 
-            {(presentation?.asset_url || hasBackendRender || (usePreparedDemo && !demoImageFailed)) && (
-              <>
-                {keepNote && (
-                  <div className="canvas-note canvas-note--one" title={`KEEP / ${keepNote}`}>
-                    KEEP / {keepNote.toUpperCase()}
-                  </div>
-                )}
-                {changeNote && (
-                  <div className="canvas-note canvas-note--two" title={`CHANGE / ${changeNote}`}>
-                    CHANGE / {changeNote.toUpperCase()}
-                  </div>
-                )}
-              </>
+            {backendVersion?.asset_url && (
+              <TechnicalViews
+                projectId={seed.projectId}
+                versionId={backendVersion.id}
+                views={selectedTechnicalViews}
+                onViewsChange={(updatedView) => {
+                  setBackendTechnicalViews((current) => [
+                    ...current.filter((view) => view.id !== updatedView.id),
+                    updatedView,
+                  ])
+                }}
+              />
             )}
+
+            {backendVersion?.asset_url &&
+              (linkedPresentations.length > 0 || editorialDirection) && (
+                <section
+                  className="canvas-editorials"
+                  aria-label={`Editorial views linked to design version ${backendVersion.version_number}`}
+                >
+                  <AnimatePresence initial={false}>
+                    {linkedPresentations.map((item, index) => (
+                      <motion.figure
+                        key={item.id}
+                        className={`presentation-study canvas-editorial ${selection.presentationId === item.id ? 'is-current' : ''}`}
+                        initial={{ opacity: 0, scale: 0.94, x: reduceMotion ? 0 : 18 }}
+                        animate={{ opacity: 1, scale: 1, x: 0 }}
+                        exit={{ opacity: 0, scale: 0.96 }}
+                        transition={{
+                          delay: reduceMotion ? 0 : index * 0.06,
+                          duration: reduceMotion ? 0 : 0.34,
+                        }}
+                      >
+                        <img
+                          src={item.asset_url}
+                          alt={`Editorial presentation in ${presentationLabel(item.preset_id)}, linked to design version ${backendVersion.version_number}`}
+                          draggable={false}
+                        />
+                        <figcaption>
+                          <span>
+                            EDITORIAL / {String(linkedPresentations.length - index).padStart(2, '0')}
+                          </span>
+                          <strong>{presentationLabel(item.preset_id)}</strong>
+                          <small>
+                            LINKED / VERSION {String(backendVersion.version_number).padStart(2, '0')}
+                          </small>
+                        </figcaption>
+                      </motion.figure>
+                    ))}
+
+                    {editorialDirection && (
+                      <motion.figure
+                        key="editorial-pending"
+                        className="presentation-study canvas-editorial canvas-editorial--pending"
+                        role="status"
+                        aria-live="polite"
+                        initial={{ opacity: 0, scale: 0.94, x: reduceMotion ? 0 : 18 }}
+                        animate={{ opacity: 1, scale: 1, x: 0 }}
+                        exit={{ opacity: 0, scale: 0.96 }}
+                        transition={{ duration: reduceMotion ? 0 : 0.28 }}
+                      >
+                        <div className="canvas-editorial__pending-art">
+                          <span className="loading-spinner" aria-hidden="true" />
+                          <span>MAKING EDITORIAL</span>
+                          <strong>{editorialDirection.toUpperCase()}</strong>
+                        </div>
+                        <figcaption>
+                          <span>EDITORIAL / IN PROGRESS</span>
+                          <small>
+                            LINKED / VERSION {String(backendVersion.version_number).padStart(2, '0')}
+                          </small>
+                        </figcaption>
+                      </motion.figure>
+                    )}
+                  </AnimatePresence>
+                </section>
+              )}
+
           </motion.div>
 
           {!inspirationOpen && !castingOpen && !specOpen && (
@@ -951,8 +1083,50 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
           )}
         </div>
 
-        <aside className="version-rail" aria-label="Design versions">
-          <span>VERSIONS</span>
+        {activeCandidateSet && (
+          <CandidatePicker
+            projectId={seed.projectId}
+            candidates={activeCandidateSet}
+            onSelected={async (version: SelectedCandidateVersion, candidateId) => {
+              setAutoPollingTechnicalVersionId(version.id)
+              setBackendVersions((current) => [
+                ...current.filter((item) => item.id !== version.id),
+                version,
+              ])
+              setSelection({ versionId: version.id, presentationId: null })
+              setBackendCandidates((current) =>
+                current.map((candidate) =>
+                  candidate.id === candidateId
+                    ? { ...candidate, status: 'selected', selected_version_id: version.id }
+                    : candidate,
+                ),
+              )
+              await refreshProject({ preferredVersionId: version.id, showCanonical: true })
+            }}
+            onDismissed={async (dismissedCandidates, generationJobId) => {
+              setBackendCandidates((current) => [
+                ...current.filter(
+                  (candidate) => candidate.generation_job_id !== generationJobId,
+                ),
+                ...(dismissedCandidates.length > 0
+                  ? dismissedCandidates
+                  : current
+                      .filter(
+                        (candidate) => candidate.generation_job_id === generationJobId,
+                      )
+                      .map((candidate) => ({ ...candidate, status: 'dismissed' as const }))),
+              ])
+              await refreshProject({ showCanonical: true })
+            }}
+          />
+        )}
+
+        <aside
+          className="version-rail"
+          aria-labelledby="version-rail-heading"
+          inert={activeCandidateSet ? true : undefined}
+        >
+          <h2 id="version-rail-heading">VERSIONS</h2>
           {usePreparedDemo
             ? demoVersions.map((item) => (
                 <button
