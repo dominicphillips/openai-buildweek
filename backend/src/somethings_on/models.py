@@ -25,6 +25,16 @@ class ProjectSeedInput(BaseModel):
 
 
 RevisionInstruction = Annotated[str, Field(min_length=1, max_length=120)]
+TechnicalViewRole = Literal["back", "left", "right"]
+DesignCandidateStatus = Literal["ready", "selected", "dismissed"]
+GenerationJobStatus = Literal[
+    "queued",
+    "running",
+    "awaiting_selection",
+    "succeeded",
+    "failed",
+    "discarded",
+]
 
 
 class DesignRevisionCreateInput(BaseModel):
@@ -188,6 +198,31 @@ class DesignVersionRecord(BaseModel):
         return f"/api/assets/{self.asset_id}" if self.asset_id else None
 
 
+class DesignCandidateRecord(BaseModel):
+    """One durable raster option that becomes garment truth only when selected."""
+
+    id: str
+    project_id: str
+    generation_job_id: str
+    base_version_id: str | None = None
+    candidate_index: int = Field(ge=1, le=4)
+    requested_change: str
+    preserve: list[str] = Field(default_factory=list)
+    avoid: list[str] = Field(default_factory=list)
+    prompt: str
+    model: str
+    status: DesignCandidateStatus
+    asset_id: str
+    selected_version_id: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    @computed_field
+    @property
+    def asset_url(self) -> str:
+        return f"/api/assets/{self.asset_id}"
+
+
 class PresentationRenderRecord(BaseModel):
     id: str
     project_id: str
@@ -209,6 +244,27 @@ class PresentationRenderRecord(BaseModel):
         return f"/api/assets/{self.output_asset_id}" if self.output_asset_id else None
 
 
+class TechnicalViewRecord(BaseModel):
+    """A derived inspection angle linked to one immutable canonical design version."""
+
+    id: str
+    project_id: str
+    design_version_id: str
+    role: TechnicalViewRole
+    prompt: str
+    model: str
+    status: Literal["pending", "running", "ready", "failed"]
+    output_asset_id: str | None = None
+    error_code: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    @computed_field
+    @property
+    def asset_url(self) -> str | None:
+        return f"/api/assets/{self.output_asset_id}" if self.output_asset_id else None
+
+
 class ProjectSnapshot(BaseModel):
     id: str
     object_name: str
@@ -216,6 +272,8 @@ class ProjectSnapshot(BaseModel):
     references: list[AssetRecord]
     link_references: list[LinkReferenceRecord]
     versions: list[DesignVersionRecord]
+    candidates: list[DesignCandidateRecord] = Field(default_factory=list)
+    technical_views: list[TechnicalViewRecord] = Field(default_factory=list)
     presentations: list[PresentationRenderRecord] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
@@ -232,7 +290,7 @@ class GenerationJobRecord(BaseModel):
     base_version_id: str | None = None
     requested_change: str
     model: str
-    status: Literal["queued", "running", "succeeded", "failed"]
+    status: GenerationJobStatus
     output_asset_id: str | None = None
     error_code: str | None = None
     created_at: datetime

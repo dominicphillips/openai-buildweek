@@ -62,6 +62,16 @@ def test_devday_seed_is_ready_idempotent_and_independent_of_working_directory(
         ]
         assert project["current_version"]["id"] == versions[2]["id"]
 
+        technical_views = project["technical_views"]
+        assert len(technical_views) == 9
+        assert {view["role"] for view in technical_views} == {"back", "left", "right"}
+        assert {view["status"] for view in technical_views} == {"pending"}
+        assert all(view["output_asset_id"] is None for view in technical_views)
+        assert all(view["error_code"] is None for view in technical_views)
+        assert {view["design_version_id"] for view in technical_views} == {
+            version["id"] for version in versions
+        }
+
         for version, prepared in zip(versions, PREPARED_DESIGN_VERSIONS, strict=True):
             assert version["asset_id"] is not None
             assert version["asset_url"] == f"/api/assets/{version['asset_id']}"
@@ -88,6 +98,7 @@ def test_devday_seed_is_ready_idempotent_and_independent_of_working_directory(
             "assets": [version["asset_id"] for version in versions]
             + [presentation["output_asset_id"]],
             "presentations": [presentation["id"]],
+            "technical_views": [view["id"] for view in technical_views],
         }
         put_response = client.put(
             f"/api/projects/{DEVDAY_PROJECT_ID}",
@@ -110,6 +121,9 @@ def test_devday_seed_is_ready_idempotent_and_independent_of_working_directory(
         ] == original_ids["assets"]
         assert [render["id"] for render in restarted["presentations"]] == original_ids[
             "presentations"
+        ]
+        assert [view["id"] for view in restarted["technical_views"]] == original_ids[
+            "technical_views"
         ]
         assert restored_path.is_file()
         assert (
@@ -134,6 +148,10 @@ def test_devday_seed_is_ready_idempotent_and_independent_of_working_directory(
             "SELECT COUNT(*) FROM presentation_renders WHERE project_id = ?",
             (DEVDAY_PROJECT_ID,),
         ).fetchone() == (1,)
+        assert database.execute(
+            "SELECT COUNT(*) FROM technical_views WHERE project_id = ?",
+            (DEVDAY_PROJECT_ID,),
+        ).fetchone() == (9,)
         for index, (version_id, asset_id, prepared) in enumerate(
             zip(
                 original_ids["versions"],

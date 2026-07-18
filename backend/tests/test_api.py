@@ -279,8 +279,13 @@ def test_direct_version_endpoint_generates_v1_then_edits_exact_base_bytes(
 
         assert len(provider.generate_calls) == 1
         assert provider.generate_calls[0][1] == "medium"
-        assert len(provider.edit_calls) == 1
-        edit_prompt, reference_path, submitted_reference, edit_quality = provider.edit_calls[0]
+        canonical_edit_calls = [
+            call
+            for call in provider.edit_calls
+            if "Make exactly this one requested visible change" in call[0]
+        ]
+        assert len(canonical_edit_calls) == 1
+        edit_prompt, reference_path, submitted_reference, edit_quality = canonical_edit_calls[0]
         assert edit_quality == "medium"
         assert "Expose only the shoulder seam allowances" in edit_prompt
         assert submitted_reference == first_bytes_before_edit
@@ -385,7 +390,10 @@ def test_direct_version_endpoint_maps_safe_validation_and_lineage_failures(
         assert missing_raster.json()["detail"] == (
             "The selected design raster is unavailable. Choose another version."
         )
-        assert provider.edit_calls == []
+        assert all(
+            "derived technical inspection view" in prompt
+            for prompt, _path, _content, _quality in provider.edit_calls
+        )
 
 
 def test_direct_version_endpoint_reports_unconfigured_provider(tmp_path: Path) -> None:

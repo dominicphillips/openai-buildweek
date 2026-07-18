@@ -9,6 +9,7 @@ from pathlib import Path
 from PIL import Image, UnidentifiedImageError
 
 from .design_store import ProjectNotFoundError, SQLiteDesignStore
+from .image_service import TECHNICAL_VIEW_ROLES, build_technical_view_prompt
 from .models import (
     AssetRecord,
     CastingControls,
@@ -272,7 +273,30 @@ class DevDayDemoSeeder:
                 )
             project = await self.store.get_project(DEVDAY_PROJECT_ID)
 
-        return await self._ensure_presentation(project)
+        project = await self._ensure_presentation(project)
+        return await self._ensure_technical_view_records(project)
+
+    async def _ensure_technical_view_records(
+        self,
+        project: ProjectSnapshot,
+    ) -> ProjectSnapshot:
+        """Expose honest retryable slots for prepared rasters without paid startup calls."""
+
+        for version in project.versions:
+            if version.status != "ready" or version.asset_id is None:
+                continue
+            for role in TECHNICAL_VIEW_ROLES:
+                await self.store.ensure_technical_view(
+                    project_id=project.id,
+                    design_version_id=version.id,
+                    role=role,
+                    prompt=build_technical_view_prompt(
+                        object_name=project.object_name,
+                        role=role,
+                    ),
+                    model="gpt-image-2",
+                )
+        return await self.store.get_project(project.id)
 
     async def _design_seed_progress(self, project: ProjectSnapshot) -> int | None:
         if (

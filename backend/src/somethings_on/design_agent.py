@@ -8,7 +8,7 @@ from agents.models.interface import Model
 from chatkit.agents import AgentContext
 from chatkit.types import ClientEffectEvent, ProgressUpdateEvent
 
-from .design_store import DesignVersionNotFoundError
+from .design_store import CandidateSetInProgressError, DesignVersionNotFoundError
 from .image_service import (
     DesignImageService,
     ImageGenerationUnavailable,
@@ -27,7 +27,7 @@ async def create_design_revision(
     preserve: list[str] | None = None,
     avoid: list[str] | None = None,
 ) -> str:
-    """Create one new immutable visual version after the designer confirms a concrete change.
+    """Create four visual options after the designer confirms one concrete change.
 
     Args:
         requested_change: One specific, visible change to make to the current object.
@@ -41,16 +41,15 @@ async def create_design_revision(
     project_id = cast(str, request_context["project_id"])
     base_version_id = cast(str | None, request_context.get("base_version_id"))
 
-    await agent_context.stream(
-        ProgressUpdateEvent(icon="sparkle", text="Rendering one authored change…")
-    )
+    await agent_context.stream(ProgressUpdateEvent(text="Working on four options…"))
     try:
-        version = await service.create_revision(
+        candidates = await service.create_candidates(
             project_id=project_id,
             requested_change=requested_change,
             preserve=preserve,
             avoid=avoid,
             base_version_id=base_version_id,
+            count=4,
         )
     except DesignVersionNotFoundError:
         return (
@@ -59,28 +58,32 @@ async def create_design_revision(
         )
     except RevisionBaseAssetRequired as error:
         return f"The visual revision was not created: {error}"
+    except CandidateSetInProgressError as error:
+        return f"The visual options were not created: {error}"
     except (ImageGenerationUnavailable, InvalidImageError, ValueError) as error:
-        return f"The visual revision was not created: {error}"
+        return f"The visual options were not created: {error}"
+
+    candidate_set_id = candidates[0].generation_job_id
 
     await agent_context.stream(
         ClientEffectEvent(
-            name="design.version.created",
+            name="design.candidates.created",
             data={
                 "project_id": project_id,
-                "version_id": version.id,
-                "version_number": version.version_number,
-                "asset_url": version.asset_url,
+                "job_id": candidate_set_id,
+                "count": len(candidates),
             },
         )
     )
     return json.dumps(
         {
-            "status": "created",
-            "version_id": version.id,
-            "version_number": version.version_number,
-            "asset_url": version.asset_url,
-            "requested_change": version.requested_change,
-            "preserved": version.preserve,
+            "status": "awaiting_selection",
+            "candidate_set_id": candidate_set_id,
+            "candidate_count": len(candidates),
+            "requested_change": requested_change,
+            "message": (
+                "Four options are ready. The designer must choose one to create the next version."
+            ),
         }
     )
 
@@ -124,8 +127,9 @@ def build_design_agent(
             "attributable to this designer.\n\n"
             "Before calling create_design_revision, identify what must stay and obtain clear "
             "confirmation of one visible change. Never call it merely because the user is "
-            "exploring. After a successful tool call, summarize what changed and what was "
-            "preserved. If the tool "
+            "exploring. The tool creates four candidates, not a new version. After a successful "
+            "tool call, tell the designer to compare and choose one option in the studio. Do not "
+            "claim that a version exists before that selection. If the tool "
             "cannot run, say so plainly and continue the design conversation without pretending an "
             "image exists.\n\n"
             "The browser's selected design version is authoritative for this turn. The revision "

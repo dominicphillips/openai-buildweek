@@ -31,7 +31,7 @@ class RecordingImageProvider:
         *,
         quality: ImageQuality = "low",
     ) -> bytes:
-        assert "no logo" in prompt
+        assert "No person" in prompt
         self.generate_calls.append((prompt, quality))
         return image_bytes("white")
 
@@ -42,7 +42,7 @@ class RecordingImageProvider:
         *,
         quality: ImageQuality = "low",
     ) -> bytes:
-        assert "no logo" in prompt
+        assert "No person" in prompt
         self.edit_calls.append((prompt, reference_path, reference_path.read_bytes(), quality))
         return image_bytes("black")
 
@@ -128,9 +128,14 @@ async def test_initial_generation_then_edit_uses_current_raster_and_preserves_li
     assert second.version_number == 2
     assert second.parent_version_id == first.id
     assert len(provider.generate_calls) == 1
-    assert len(provider.edit_calls) == 1
+    canonical_edit_calls = [
+        call
+        for call in provider.edit_calls
+        if "Make exactly this one requested visible change" in call[0]
+    ]
+    assert len(canonical_edit_calls) == 1
     initial_prompt, initial_quality = provider.generate_calls[0]
-    edit_prompt, reference_path, submitted_reference, edit_quality = provider.edit_calls[0]
+    edit_prompt, reference_path, submitted_reference, edit_quality = canonical_edit_calls[0]
     assert initial_quality == "medium"
     assert edit_quality == "medium"
     assert "Create the first original design study from scratch" in initial_prompt
@@ -202,8 +207,13 @@ async def test_selected_older_version_is_the_exact_branch_parent(tmp_path: Path)
     assert second.version_number == 2
     assert branch.version_number == 3
     assert branch.parent_version_id == first.id
-    assert provider.edit_calls[-1][1] == first_path
-    assert provider.edit_calls[-1][2] == first_bytes
+    branch_edit = next(
+        call
+        for call in reversed(provider.edit_calls)
+        if "Add only a restrained rib texture" in call[0]
+    )
+    assert branch_edit[1] == first_path
+    assert branch_edit[2] == first_bytes
     assert first_path.read_bytes() == first_bytes
     assert second_path.read_bytes() == second_bytes
     snapshot = await store.get_project("look_001")
@@ -272,7 +282,10 @@ async def test_selected_base_rejects_unknown_cross_project_and_assetless_ids(
         )
 
     assert len(provider.generate_calls) == 1
-    assert provider.edit_calls == []
+    assert all(
+        "derived technical inspection view" in prompt
+        for prompt, _path, _content, _quality in provider.edit_calls
+    )
     assert (await store.get_project("look_b")).versions == [concept_b]
 
 
@@ -322,10 +335,15 @@ async def test_failed_branch_keeps_selected_parent_and_latest_version_intact(
     assert [version.version_number for version in snapshot.versions] == [1, 2]
     assert first_path.read_bytes() == first_bytes
     assert second_path.read_bytes() == second_bytes
-    assert len(list(asset_root.rglob("*.png"))) == 2
+    assert len(list(asset_root.rglob("*.png"))) == 8
     assert len(provider.generate_calls) == 1
-    assert len(provider.edit_calls) == 1
-    assert provider.edit_calls[0][2] == first_bytes
+    canonical_edit_calls = [
+        call
+        for call in provider.edit_calls
+        if "Make exactly this one requested visible change" in call[0]
+    ]
+    assert len(canonical_edit_calls) == 1
+    assert canonical_edit_calls[0][2] == first_bytes
     assert failed_provider.generate_calls == []
     assert len(failed_provider.edit_calls) == 1
     assert failed_provider.edit_calls[0][1] == first_path

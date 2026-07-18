@@ -141,7 +141,7 @@ async def test_presentation_uses_canonical_asset_without_adding_design_version(
     assert [record.id for record in after.presentations] == [presentation.id]
     assert provider.calls[-1][1] is not None
     assert provider.calls[-1][1].is_file()
-    assert [call[2] for call in provider.calls] == ["medium", "medium"]
+    assert [call[2] for call in provider.calls] == ["medium"] * 5
     assert len(assessor.calls) == 1
     assert assessor.calls[0][0] == provider.calls[-1][1]
     assert assessor.calls[0][1]
@@ -198,7 +198,7 @@ async def test_garment_drift_fails_presentation_without_saving_asset_or_version(
     assert after.presentations == [presentation]
     assert asset_files_after == asset_files_before
     assert len(assessor.calls) == 1
-    assert [call[2] for call in provider.calls] == ["medium", "medium"]
+    assert [call[2] for call in provider.calls] == ["medium"] * 5
 
 
 @pytest.mark.asyncio

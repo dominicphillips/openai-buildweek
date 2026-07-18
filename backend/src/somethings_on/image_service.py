@@ -4,6 +4,7 @@ import asyncio
 import base64
 import hashlib
 import io
+import logging
 import uuid
 from pathlib import Path
 from typing import Literal, Protocol
@@ -18,14 +19,24 @@ from .models import (
     AssetRecord,
     CastingControls,
     CastingPresetRecord,
+    DesignCandidateRecord,
     DesignVersionRecord,
     PresentationCreateInput,
     PresentationRenderRecord,
+    TechnicalViewRecord,
+    TechnicalViewRole,
 )
 
 Image.MAX_IMAGE_PIXELS = 25_000_000
 _ALLOWED_UPLOAD_TYPES = {"image/jpeg", "image/png", "image/webp"}
 ImageQuality = Literal["low", "medium", "high"]
+TECHNICAL_VIEW_ROLES: tuple[TechnicalViewRole, ...] = ("back", "left", "right")
+_TECHNICAL_VIEW_DIRECTIONS: dict[TechnicalViewRole, str] = {
+    "back": "direct back view",
+    "left": "left-side profile, with the camera looking at the garment's left side",
+    "right": "right-side profile, with the camera looking at the garment's right side",
+}
+logger = logging.getLogger(__name__)
 
 
 class InvalidImageError(ValueError):
@@ -42,6 +53,27 @@ class CanonicalDesignAssetRequired(RuntimeError):
 
 class RevisionBaseAssetRequired(RuntimeError):
     pass
+
+
+def build_technical_view_prompt(*, object_name: str, role: TechnicalViewRole) -> str:
+    """Build an inspection-angle edit prompt that forbids garment redesign."""
+
+    direction = _TECHNICAL_VIEW_DIRECTIONS[role]
+    return (
+        "Edit the supplied exact canonical garment raster into one derived technical "
+        "inspection view. Use that raster as the sole visual source of truth.\n"
+        f"Object: {object_name}.\n"
+        f"Required view: {direction}.\n"
+        "Change only the viewpoint. Preserve the exact garment identity, category, silhouette, "
+        "cut, measurements, proportions, layering, materials, construction, seam placement, "
+        "color, graphics, distressing, finish, trims, closures, hardware, and all authored "
+        "details. Do not redesign, restyle, simplify, add, remove, replace, mirror, or reinterpret "
+        "the garment. Infer only occluded construction needed to show this angle, conservatively "
+        "and consistently with the canonical raster. Keep the full object visible at a comparable "
+        "scale on the same neutral studio background with matching lighting. Preserve any "
+        "existing authored graphics, markings, and text exactly. Return one garment only. No "
+        "person; no new logo, brand mark, readable text, watermark, prop, or collage."
+    )
 
 
 class GarmentPreservationAssessment(BaseModel):
@@ -71,6 +103,23 @@ class ImageProvider(Protocol):
         *,
         quality: ImageQuality = "low",
     ) -> bytes: ...
+
+    async def generate_candidates(
+        self,
+        prompt: str,
+        *,
+        count: int,
+        quality: ImageQuality = "low",
+    ) -> list[bytes]: ...
+
+    async def edit_candidates(
+        self,
+        prompt: str,
+        reference_path: Path,
+        *,
+        count: int,
+        quality: ImageQuality = "low",
+    ) -> list[bytes]: ...
 
 
 class GarmentPreservationAssessor(Protocol):
@@ -126,15 +175,60 @@ class OpenAIImageProvider:
             )
         return self._decode_image_response(response)
 
+    async def generate_candidates(
+        self,
+        prompt: str,
+        *,
+        count: int,
+        quality: ImageQuality = "low",
+    ) -> list[bytes]:
+        response = await self.client.images.generate(
+            model=self.model,
+            prompt=prompt,
+            size="1024x1536",
+            quality=quality,
+            n=count,
+        )
+        return self._decode_image_responses(response, expected_count=count)
+
+    async def edit_candidates(
+        self,
+        prompt: str,
+        reference_path: Path,
+        *,
+        count: int,
+        quality: ImageQuality = "low",
+    ) -> list[bytes]:
+        with reference_path.open("rb") as reference:
+            response = await self.client.images.edit(
+                model=self.model,
+                image=reference,
+                prompt=prompt,
+                size="1024x1536",
+                quality=quality,
+                n=count,
+            )
+        return self._decode_image_responses(response, expected_count=count)
+
     @staticmethod
     def _decode_image_response(response: object) -> bytes:
+        return OpenAIImageProvider._decode_image_responses(response, expected_count=1)[0]
+
+    @staticmethod
+    def _decode_image_responses(response: object, *, expected_count: int) -> list[bytes]:
         data = getattr(response, "data", None)
-        if not data or not data[0].b64_json:
+        if not data or len(data) != expected_count:
             raise ImageGenerationUnavailable("The image did not finish. Try again.")
-        try:
-            return base64.b64decode(data[0].b64_json, validate=True)
-        except ValueError as error:
-            raise ImageGenerationUnavailable("The image did not finish. Try again.") from error
+        decoded: list[bytes] = []
+        for item in data:
+            encoded = getattr(item, "b64_json", None)
+            if not encoded:
+                raise ImageGenerationUnavailable("The image did not finish. Try again.")
+            try:
+                decoded.append(base64.b64decode(encoded, validate=True))
+            except ValueError as error:
+                raise ImageGenerationUnavailable("The image did not finish. Try again.") from error
+        return decoded
 
     async def assess_preservation(
         self,
@@ -351,7 +445,6 @@ class DesignImageService:
                 status="succeeded",
                 output_asset_id=asset.id,
             )
-            return version
         except Exception as error:
             await self.store.update_generation_job(
                 job.id,
@@ -363,6 +456,310 @@ class DesignImageService:
             raise ImageGenerationUnavailable(
                 "The image edit could not be completed. The prior version is unchanged."
             ) from error
+
+        # The canonical version is durable before any angle rendering begins. Technical-view
+        # failures are isolated records and can never roll back or replace garment truth.
+        try:
+            await self.create_technical_views_for_version(
+                project_id=project_id,
+                design_version_id=version.id,
+            )
+        except Exception:
+            logger.exception(
+                "Could not finish technical-view records for canonical version %s",
+                version.id,
+            )
+        return version
+
+    async def create_candidates(
+        self,
+        *,
+        project_id: str,
+        requested_change: str,
+        preserve: list[str] | None = None,
+        avoid: list[str] | None = None,
+        base_version_id: str | None = None,
+        count: int = 4,
+    ) -> list[DesignCandidateRecord]:
+        """Render one four-option set without creating or advancing design truth."""
+
+        if self.provider is None:
+            raise ImageGenerationUnavailable(
+                "The studio is not connected yet. Start the image service and try again."
+            )
+        if count != 4:
+            raise ValueError("Design candidate sets contain exactly four options.")
+
+        project = await self.store.ensure_project(project_id)
+        base_version = (
+            await self.store.get_design_version(project_id, base_version_id)
+            if base_version_id is not None
+            else project.current_version
+        )
+        if base_version_id is not None and (base_version is None or base_version.asset_id is None):
+            raise RevisionBaseAssetRequired(
+                "The selected design version has no raster to edit. Generate the first design "
+                "without a base version."
+            )
+        requested_change = requested_change.strip()[:800]
+        if not requested_change:
+            raise ValueError("Describe one concrete design change.")
+        keep = self._clean_list(preserve)
+        exclude = self._clean_list(avoid)
+        is_edit = bool(base_version and base_version.asset_id)
+        if is_edit:
+            prompt = self._build_edit_prompt(
+                object_name=project.object_name,
+                requested_change=requested_change,
+                preserve=keep,
+                avoid=exclude,
+            )
+        else:
+            prompt = self._build_initial_prompt(
+                object_name=project.object_name,
+                taste_traits=[tag for signal in project.taste_signals for tag in signal.tags],
+                requested_change=requested_change,
+                preserve=keep,
+                avoid=exclude,
+            )
+
+        # Even the first generate-only set retains the exact provisional concept id. Selection
+        # can therefore materialize only the concept the designer actually saw when rendering.
+        source_version_id = base_version.id if base_version else None
+        job = await self.store.create_candidate_generation_job(
+            project_id=project_id,
+            expected_project_updated_at=project.updated_at.isoformat(),
+            base_version_id=source_version_id,
+            expected_base_asset_id=base_version.asset_id if base_version else None,
+            expected_base_status=base_version.status if base_version else None,
+            requested_change=requested_change,
+            model=self.image_model,
+        )
+        await self.store.update_generation_job(job.id, status="running")
+        persisted_assets: list[AssetRecord] = []
+        persisted_paths: list[str] = []
+
+        try:
+            if is_edit and base_version and base_version.asset_id:
+                reference_path = await self.resolve_asset(base_version.asset_id)
+                raw_candidates = await self.provider.edit_candidates(
+                    prompt,
+                    reference_path,
+                    count=count,
+                    quality="medium",
+                )
+            else:
+                raw_candidates = await self.provider.generate_candidates(
+                    prompt,
+                    count=count,
+                    quality="medium",
+                )
+            if not isinstance(raw_candidates, list) or len(raw_candidates) != count:
+                raise ImageGenerationUnavailable(
+                    "The full set of design options did not finish. Try again."
+                )
+
+            # Validate every provider result before any option becomes visible or durable.
+            normalized_candidates = [
+                await asyncio.to_thread(self._normalize_image, content)
+                for content in raw_candidates
+            ]
+            for normalized, width, height in normalized_candidates:
+                storage_path = await self._write_asset(project_id, normalized)
+                persisted_paths.append(storage_path)
+                asset = await self.store.add_asset(
+                    project_id=project_id,
+                    kind="generated",
+                    storage_path=storage_path,
+                    mime_type="image/png",
+                    width=width,
+                    height=height,
+                    sha256=hashlib.sha256(normalized).hexdigest(),
+                )
+                persisted_assets.append(asset)
+
+            return await self.store.create_design_candidates(
+                project_id=project_id,
+                generation_job_id=job.id,
+                base_version_id=source_version_id,
+                requested_change=requested_change,
+                preserve=keep,
+                avoid=exclude,
+                prompt=prompt,
+                model=self.image_model,
+                asset_ids=[asset.id for asset in persisted_assets],
+            )
+        except Exception as error:
+            await self._discard_candidate_assets(persisted_assets, persisted_paths)
+            await self.store.update_generation_job(
+                job.id,
+                status="failed",
+                error_code=self._error_code(error),
+            )
+            if isinstance(error, ImageGenerationUnavailable | InvalidImageError | ValueError):
+                raise
+            raise ImageGenerationUnavailable(
+                "The design options could not be completed. Your current version is unchanged."
+            ) from error
+
+    async def select_candidate(
+        self,
+        *,
+        project_id: str,
+        generation_job_id: str,
+        candidate_id: str,
+    ) -> DesignVersionRecord:
+        """Promote one candidate and create its three pending derived-view slots atomically."""
+
+        project = await self.store.get_project(project_id)
+        technical_views = [
+            (
+                role,
+                build_technical_view_prompt(object_name=project.object_name, role=role),
+                self.image_model,
+            )
+            for role in TECHNICAL_VIEW_ROLES
+        ]
+        version, _created = await self.store.select_design_candidate(
+            project_id=project_id,
+            generation_job_id=generation_job_id,
+            candidate_id=candidate_id,
+            technical_views=technical_views,
+        )
+        return version
+
+    async def dismiss_candidate_set(
+        self,
+        *,
+        project_id: str,
+        generation_job_id: str,
+    ) -> list[DesignCandidateRecord]:
+        return await self.store.dismiss_design_candidates(
+            project_id=project_id,
+            generation_job_id=generation_job_id,
+        )
+
+    async def ensure_technical_view_records(
+        self,
+        *,
+        project_id: str,
+        design_version_id: str,
+    ) -> list[TechnicalViewRecord]:
+        project = await self.store.get_project(project_id)
+        version = await self.store.get_design_version(project_id, design_version_id)
+        if version.status != "ready" or version.asset_id is None:
+            raise CanonicalDesignAssetRequired(
+                "Generate a design version before making technical views."
+            )
+        records: list[TechnicalViewRecord] = []
+        for role in TECHNICAL_VIEW_ROLES:
+            records.append(
+                await self.store.ensure_technical_view(
+                    project_id=project_id,
+                    design_version_id=version.id,
+                    role=role,
+                    prompt=build_technical_view_prompt(
+                        object_name=project.object_name,
+                        role=role,
+                    ),
+                    model=self.image_model,
+                )
+            )
+        return records
+
+    async def create_technical_views_for_version(
+        self,
+        *,
+        project_id: str,
+        design_version_id: str,
+    ) -> list[TechnicalViewRecord]:
+        """Render all three derived angles concurrently without mutating the version."""
+
+        records = await self.ensure_technical_view_records(
+            project_id=project_id,
+            design_version_id=design_version_id,
+        )
+        await asyncio.gather(
+            *(self._render_technical_view(record) for record in records),
+            return_exceptions=True,
+        )
+        return await self.store.list_technical_views(
+            project_id,
+            design_version_id=design_version_id,
+        )
+
+    async def render_technical_view(
+        self,
+        *,
+        project_id: str,
+        design_version_id: str,
+        role: TechnicalViewRole,
+    ) -> TechnicalViewRecord:
+        """Create or retry one angle; ready/running records are idempotent."""
+
+        records = await self.ensure_technical_view_records(
+            project_id=project_id,
+            design_version_id=design_version_id,
+        )
+        record = next(item for item in records if item.role == role)
+        return await self._render_technical_view(record)
+
+    async def _render_technical_view(
+        self,
+        record: TechnicalViewRecord,
+    ) -> TechnicalViewRecord:
+        claimed, should_render = await self.store.claim_technical_view(record.id)
+        if not should_render:
+            return claimed
+        if self.provider is None:
+            return await self.store.update_technical_view(
+                record.id,
+                status="failed",
+                error_code="provider_unavailable",
+            )
+
+        try:
+            version = await self.store.get_design_version(
+                record.project_id,
+                record.design_version_id,
+            )
+            if version.status != "ready" or version.asset_id is None:
+                raise CanonicalDesignAssetRequired(
+                    "Generate a design version before making technical views."
+                )
+            canonical_path = await self.resolve_asset(version.asset_id)
+            # Each angle is an independent Images API edit of the exact immutable canonical
+            # raster. No angle is derived from another angle or from text alone.
+            raw_image = await self.provider.edit(
+                record.prompt,
+                canonical_path,
+                quality="medium",
+            )
+            normalized, width, height = await asyncio.to_thread(
+                self._normalize_image,
+                raw_image,
+            )
+            storage_path = await self._write_asset(record.project_id, normalized)
+            asset = await self.store.add_asset(
+                project_id=record.project_id,
+                kind="generated",
+                storage_path=storage_path,
+                mime_type="image/png",
+                width=width,
+                height=height,
+                sha256=hashlib.sha256(normalized).hexdigest(),
+            )
+            return await self.store.update_technical_view(
+                record.id,
+                status="ready",
+                output_asset_id=asset.id,
+            )
+        except Exception as error:
+            return await self.store.update_technical_view(
+                record.id,
+                status="failed",
+                error_code=self._error_code(error),
+            )
 
     async def create_presentation(
         self,
@@ -471,6 +868,27 @@ class DesignImageService:
         await asyncio.to_thread(destination.write_bytes, content)
         return relative_path.as_posix()
 
+    async def _discard_candidate_assets(
+        self,
+        assets: list[AssetRecord],
+        storage_paths: list[str],
+    ) -> None:
+        """Best-effort cleanup for a set that failed before candidates became durable."""
+
+        try:
+            await self.store.delete_unlinked_assets([asset.id for asset in assets])
+        except Exception:
+            logger.exception("Could not remove unlinked candidate asset records")
+            return
+        root = self.asset_root.resolve()
+        for storage_path in storage_paths:
+            path = (root / storage_path).resolve()
+            if path.is_relative_to(root):
+                try:
+                    await asyncio.to_thread(path.unlink, missing_ok=True)
+                except OSError:
+                    logger.exception("Could not remove unlinked candidate image %s", storage_path)
+
     @staticmethod
     def _normalize_image(content: bytes) -> tuple[bytes, int, int]:
         try:
@@ -502,6 +920,7 @@ class DesignImageService:
         preserve: list[str],
         avoid: list[str],
     ) -> str:
+        requested_change = requested_change.rstrip().rstrip(".")
         traits = ", ".join(dict.fromkeys(taste_traits)) or "considered proportion and construction"
         keep = ", ".join(preserve) or "the object category and clear front-view readability"
         exclusions = ", ".join(avoid) or "unrequested changes"
@@ -527,6 +946,7 @@ class DesignImageService:
         preserve: list[str],
         avoid: list[str],
     ) -> str:
+        requested_change = requested_change.rstrip().rstrip(".")
         keep = ", ".join(preserve) or (
             "object category, silhouette, cut, proportions, materials, construction, color, "
             "graphics, finish, trims, closures, and placement"

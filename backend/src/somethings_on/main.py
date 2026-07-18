@@ -10,7 +10,17 @@ from urllib.parse import urlparse
 from agents import set_default_openai_key, set_tracing_disabled
 from agents.models.openai_responses import OpenAIResponsesModel
 from chatkit.server import NonStreamingResult, StreamingResult
-from fastapi import FastAPI, File, Header, HTTPException, Query, Request, UploadFile, status
+from fastapi import (
+    BackgroundTasks,
+    FastAPI,
+    File,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+    status,
+)
 from fastapi import Path as ApiPath
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, StreamingResponse
@@ -24,9 +34,14 @@ from .config import Settings, get_settings
 from .demo_seed import DEVDAY_PROJECT_ID, DevDayDemoSeeder
 from .design_store import (
     AssetNotFoundError,
+    CandidateSelectionConflictError,
+    CandidateSetInProgressError,
+    CandidateSetNotFoundError,
+    DesignCandidateNotFoundError,
     DesignVersionNotFoundError,
     ProjectNotFoundError,
     SQLiteDesignStore,
+    TechnicalViewNotFoundError,
 )
 from .image_service import (
     CanonicalDesignAssetRequired,
@@ -41,6 +56,7 @@ from .image_service import (
 from .models import (
     AssetRecord,
     CastingPresetCollection,
+    DesignCandidateRecord,
     DesignRevisionCreateInput,
     DesignVersionRecord,
     HealthResponse,
@@ -50,6 +66,8 @@ from .models import (
     PresentationRenderRecord,
     ProjectSeedInput,
     ProjectSnapshot,
+    TechnicalViewRecord,
+    TechnicalViewRole,
 )
 from .product_catalog import ProductCatalog, ProductCatalogError
 from .product_image_cache import ProductImageNotFoundError
@@ -57,6 +75,9 @@ from .reference_catalog import ReferenceCatalog, ReferenceCatalogError
 
 ProjectId = Annotated[str, ApiPath(pattern=r"^[A-Za-z0-9_-]{1,64}$")]
 AssetId = Annotated[str, ApiPath(pattern=r"^ast_[a-f0-9]{12}$")]
+VersionId = Annotated[str, ApiPath(pattern=r"^ver_[a-f0-9]{12}$")]
+CandidateId = Annotated[str, ApiPath(pattern=r"^cand_[a-f0-9]{12}$")]
+GenerationJobId = Annotated[str, ApiPath(pattern=r"^job_[a-f0-9]{12}$")]
 
 
 def create_app(
@@ -244,7 +265,10 @@ def create_app(
 
     @app.put("/api/projects/{project_id}", response_model=ProjectSnapshot)
     async def put_project(project_id: ProjectId, seed: ProjectSeedInput) -> ProjectSnapshot:
-        project = await design_store.upsert_project(project_id, seed)
+        try:
+            project = await design_store.upsert_project(project_id, seed)
+        except CandidateSetInProgressError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
         if project_id == DEVDAY_PROJECT_ID:
             return await devday_demo_seeder.ensure_seeded()
         return project
@@ -305,6 +329,161 @@ def create_app(
             raise HTTPException(status_code=503, detail=str(error)) from error
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
+
+    @app.post(
+        "/api/projects/{project_id}/candidate-sets",
+        response_model=list[DesignCandidateRecord],
+        status_code=status.HTTP_201_CREATED,
+    )
+    async def create_candidate_set(
+        project_id: ProjectId,
+        revision: DesignRevisionCreateInput,
+    ) -> list[DesignCandidateRecord]:
+        try:
+            project = await design_store.get_project(project_id)
+            base_version = (
+                await design_store.get_design_version(project_id, revision.base_version_id)
+                if revision.base_version_id is not None
+                else project.current_version
+            )
+            if revision.base_version_id is not None and (
+                base_version is None or base_version.asset_id is None
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        "The selected design version has no raster to edit. Generate the first "
+                        "design without a base version."
+                    ),
+                )
+            if base_version is not None and base_version.asset_id is not None:
+                try:
+                    await image_service.resolve_asset(base_version.asset_id)
+                except (AssetNotFoundError, InvalidImageError) as error:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="The selected design raster is unavailable. Choose another version.",
+                    ) from error
+            return await image_service.create_candidates(
+                project_id=project_id,
+                requested_change=revision.requested_change,
+                preserve=revision.preserve,
+                avoid=revision.avoid,
+                base_version_id=revision.base_version_id,
+                count=4,
+            )
+        except ProjectNotFoundError as error:
+            raise HTTPException(status_code=404, detail="Project not found") from error
+        except DesignVersionNotFoundError as error:
+            raise HTTPException(status_code=404, detail="Design version not found") from error
+        except CandidateSetInProgressError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        except RevisionBaseAssetRequired as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        except InvalidImageError as error:
+            raise HTTPException(
+                status_code=503,
+                detail="The design options could not be read. Your current version is unchanged.",
+            ) from error
+        except ImageGenerationUnavailable as error:
+            raise HTTPException(status_code=503, detail=str(error)) from error
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+
+    @app.post(
+        "/api/projects/{project_id}/candidate-sets/{generation_job_id}/select/{candidate_id}",
+        response_model=DesignVersionRecord,
+    )
+    async def select_candidate(
+        project_id: ProjectId,
+        generation_job_id: GenerationJobId,
+        candidate_id: CandidateId,
+        background_tasks: BackgroundTasks,
+    ) -> DesignVersionRecord:
+        try:
+            version = await image_service.select_candidate(
+                project_id=project_id,
+                generation_job_id=generation_job_id,
+                candidate_id=candidate_id,
+            )
+        except ProjectNotFoundError as error:
+            raise HTTPException(status_code=404, detail="Project not found") from error
+        except CandidateSetNotFoundError as error:
+            raise HTTPException(status_code=404, detail="Candidate set not found") from error
+        except DesignCandidateNotFoundError as error:
+            raise HTTPException(status_code=404, detail="Design candidate not found") from error
+        except CandidateSelectionConflictError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+        # The canonical version and three pending view rows are already committed. Rendering the
+        # derived angles runs after the selection response so the chosen design appears promptly.
+        background_tasks.add_task(
+            image_service.create_technical_views_for_version,
+            project_id=project_id,
+            design_version_id=version.id,
+        )
+        return version
+
+    @app.post(
+        "/api/projects/{project_id}/candidate-sets/{generation_job_id}/dismiss",
+        response_model=list[DesignCandidateRecord],
+    )
+    async def dismiss_candidate_set(
+        project_id: ProjectId,
+        generation_job_id: GenerationJobId,
+    ) -> list[DesignCandidateRecord]:
+        try:
+            return await image_service.dismiss_candidate_set(
+                project_id=project_id,
+                generation_job_id=generation_job_id,
+            )
+        except CandidateSetNotFoundError as error:
+            raise HTTPException(status_code=404, detail="Candidate set not found") from error
+        except CandidateSelectionConflictError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.get(
+        "/api/projects/{project_id}/versions/{version_id}/technical-views",
+        response_model=list[TechnicalViewRecord],
+    )
+    async def list_technical_views(
+        project_id: ProjectId,
+        version_id: VersionId,
+    ) -> list[TechnicalViewRecord]:
+        try:
+            await design_store.get_design_version(project_id, version_id)
+            return await design_store.list_technical_views(
+                project_id,
+                design_version_id=version_id,
+            )
+        except ProjectNotFoundError as error:
+            raise HTTPException(status_code=404, detail="Project not found") from error
+        except DesignVersionNotFoundError as error:
+            raise HTTPException(status_code=404, detail="Design version not found") from error
+
+    @app.post(
+        "/api/projects/{project_id}/versions/{version_id}/technical-views/{role}",
+        response_model=TechnicalViewRecord,
+    )
+    async def render_technical_view(
+        project_id: ProjectId,
+        version_id: VersionId,
+        role: TechnicalViewRole,
+    ) -> TechnicalViewRecord:
+        try:
+            return await image_service.render_technical_view(
+                project_id=project_id,
+                design_version_id=version_id,
+                role=role,
+            )
+        except ProjectNotFoundError as error:
+            raise HTTPException(status_code=404, detail="Project not found") from error
+        except DesignVersionNotFoundError as error:
+            raise HTTPException(status_code=404, detail="Design version not found") from error
+        except TechnicalViewNotFoundError as error:
+            raise HTTPException(status_code=404, detail="Technical view not found") from error
+        except CanonicalDesignAssetRequired as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
 
     @app.get(
         "/api/projects/{project_id}/presentations",

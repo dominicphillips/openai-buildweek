@@ -19,10 +19,11 @@ class FakeImagesResource:
 
     async def generate(self, **kwargs: Any) -> SimpleNamespace:
         self.calls.append(("generate", kwargs))
-        return self._response()
+        return self._response(kwargs.get("n", 1))
 
     async def edit(self, **kwargs: Any) -> SimpleNamespace:
         image = kwargs.pop("image")
+        count = kwargs.get("n", 1)
         self.calls.append(
             (
                 "edit",
@@ -32,12 +33,21 @@ class FakeImagesResource:
                 },
             )
         )
-        return self._response()
+        return self._response(count)
 
     @staticmethod
-    def _response() -> SimpleNamespace:
-        encoded = base64.b64encode(b"rendered-image").decode("ascii")
-        return SimpleNamespace(data=[SimpleNamespace(b64_json=encoded)])
+    def _response(count: int) -> SimpleNamespace:
+        contents = (
+            [b"rendered-image"]
+            if count == 1
+            else [f"rendered-image-{index}".encode() for index in range(1, count + 1)]
+        )
+        return SimpleNamespace(
+            data=[
+                SimpleNamespace(b64_json=base64.b64encode(content).decode("ascii"))
+                for content in contents
+            ]
+        )
 
 
 class FakeResponsesResource:
@@ -97,6 +107,51 @@ async def test_openai_image_provider_forwards_explicit_render_quality(tmp_path: 
                 "prompt": "lookbook",
                 "size": "1024x1536",
                 "quality": "medium",
+                "image_name": "canonical.png",
+            },
+        ),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_openai_image_provider_requests_each_four_candidate_set_once(
+    tmp_path: Path,
+) -> None:
+    provider = OpenAIImageProvider("test-key")
+    fake_client = FakeOpenAIClient()
+    provider.client = fake_client  # type: ignore[assignment]
+    reference = tmp_path / "canonical.png"
+    reference.write_bytes(b"canonical-image")
+
+    generated = await provider.generate_candidates("first set", count=4, quality="medium")
+    edited = await provider.edit_candidates(
+        "edit set",
+        reference,
+        count=4,
+        quality="medium",
+    )
+
+    assert generated == [f"rendered-image-{index}".encode() for index in range(1, 5)]
+    assert edited == [f"rendered-image-{index}".encode() for index in range(1, 5)]
+    assert fake_client.images.calls == [
+        (
+            "generate",
+            {
+                "model": "gpt-image-2",
+                "prompt": "first set",
+                "size": "1024x1536",
+                "quality": "medium",
+                "n": 4,
+            },
+        ),
+        (
+            "edit",
+            {
+                "model": "gpt-image-2",
+                "prompt": "edit set",
+                "size": "1024x1536",
+                "quality": "medium",
+                "n": 4,
                 "image_name": "canonical.png",
             },
         ),
