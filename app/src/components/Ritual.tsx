@@ -2,7 +2,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import type { Brand, ReferenceCatalogItem, ReferenceItem, RitualStage } from '../lib/types'
 import { EvidenceCatalog } from './EvidenceCatalog'
-import { PantsIcon, ShoeIcon, TShirtIcon } from './icons'
+import { BomberIcon, PantsIcon, ShoeIcon, TShirtIcon } from './icons'
 import { LiveGarmentIllustration } from './illustrations'
 import { ScrollArea } from './ui/ScrollArea'
 
@@ -21,16 +21,7 @@ type RitualProps = {
   removeReference: (referenceId: string) => void
 }
 
-const sequence: RitualStage[] = [
-  'arrival',
-  'sound',
-  'breath',
-  'headspace',
-  'brands',
-  'object',
-  'references',
-  'threshold',
-]
+const sequence: RitualStage[] = ['arrival', 'object']
 
 const stageLabels: Record<RitualStage, string> = {
   arrival: 'Arrival',
@@ -45,7 +36,8 @@ const stageLabels: Record<RitualStage, string> = {
 }
 
 const objectPresets = [
-  { label: 'T-shirt', value: 'white T-shirt', Icon: TShirtIcon },
+  { label: 'Bomber', value: 'Bomber jacket', Icon: BomberIcon },
+  { label: 'T-shirt', value: 'T-shirt', Icon: TShirtIcon },
   { label: 'Pants', value: 'pair of pants', Icon: PantsIcon },
   { label: 'Shoes', value: 'pair of shoes', Icon: ShoeIcon },
 ]
@@ -146,7 +138,7 @@ export function Ritual({
             ))}
           </div>
           <span className="progress-count">
-            {String(Math.max(stageIndex + 1, 1)).padStart(2, '0')} / 08
+            {String(Math.max(stageIndex + 1, 1)).padStart(2, '0')} / {String(sequence.length).padStart(2, '0')}
           </span>
         </div>
       </header>
@@ -177,21 +169,18 @@ export function Ritual({
                 <span>IDEA IN PROGRESS</span>
               </div>
               <div className="arrival-copy">
-                <p className="eyebrow">A guided studio for fashion ideas</p>
-                <h1>Start with what you notice.</h1>
+                <p className="eyebrow">A working studio for fashion</p>
+                <h1>Make the garment. Keep the good decisions.</h1>
                 <div className="action-row">
-                  <button className="primary-action" type="button" onClick={() => setStage('sound')}>
-                    Begin <Arrow />
-                  </button>
-                  <button className="text-action" type="button" onClick={() => setStage('brands')}>
-                    Skip the ritual
+                  <button className="primary-action" type="button" onClick={() => setStage('object')}>
+                    Choose a garment <Arrow />
                   </button>
                 </div>
               </div>
               <p className="arrival-note">
-                Not a blank canvas.
+                Reference. Change. Compare.
                 <br />
-                A place to find the first change.
+                Repeat until it is yours.
               </p>
             </div>
           )}
@@ -363,7 +352,7 @@ export function Ritual({
                     autoFocus
                     value={objectName}
                     onChange={(event) => setObjectName(event.target.value)}
-                    placeholder="e.g. a white T-shirt"
+                    placeholder="e.g. a T-shirt"
                   />
                 </label>
 
@@ -386,7 +375,7 @@ export function Ritual({
                   <button
                     className="primary-action"
                     type="button"
-                    onClick={() => setStage('references')}
+                    onClick={() => setStage('studio')}
                     disabled={!objectName.trim()}
                   >
                     Set the object <Arrow />
@@ -395,11 +384,11 @@ export function Ritual({
                     className="text-action"
                     type="button"
                     onClick={() => {
-                      setObjectName('white T-shirt')
-                      setStage('references')
+                      setObjectName('T-shirt')
+                      setStage('studio')
                     }}
                   >
-                    Start with a white tee
+                    Start with a T-shirt
                   </button>
                 </div>
               </div>
@@ -514,7 +503,7 @@ export function Ritual({
               </div>
               <div className="threshold-illustration">
                 <LiveGarmentIllustration label="Animated outline studies of a T-shirt, pants, and shoe" />
-                <span>LIVE STUDY / REACT + SVG</span>
+                <span>GARMENT STUDY</span>
               </div>
             </div>
           )}

@@ -1,20 +1,62 @@
 import { ChatKit, useChatKit } from '@openai/chatkit-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 type ChatDockProps = {
   projectId: string
   objectName: string
   referenceCount: number
-  onProjectRefresh: () => void
+  activeVersionId?: string
+  externalBusy?: boolean
+  onProjectRefresh: (createdVersion?: { id: string; number: number }) => void | Promise<void>
+  onWorkingChange?: (working: boolean) => void
 }
 
 type AgentStatus = 'checking' | 'online' | 'offline'
 
-export function ChatDock({ projectId, objectName, referenceCount, onProjectRefresh }: ChatDockProps) {
+const editIntents = [
+  {
+    label: 'Fit',
+    prompt:
+      'Change only the fit: describe one exact silhouette or proportion adjustment. Keep material, construction, color, finish, trims, camera, and background unchanged.',
+  },
+  {
+    label: 'Material',
+    prompt:
+      'Change only the material: describe one exact fabric or surface substitution. Keep fit, construction, color, trims, camera, and background unchanged.',
+  },
+  {
+    label: 'Construction',
+    prompt:
+      'Change only the construction: describe one exact seam, closure, pocket, collar, cuff, or hem adjustment. Keep every other garment detail, camera, and background unchanged.',
+  },
+  {
+    label: 'Finish',
+    prompt:
+      'Change only the finish: describe one exact wash, abrasion, distressing, dye, or repair treatment. Keep fit, material, construction, trims, camera, and background unchanged.',
+  },
+]
+
+export function ChatDock({
+  projectId,
+  objectName,
+  referenceCount,
+  activeVersionId,
+  externalBusy = false,
+  onProjectRefresh,
+  onWorkingChange,
+}: ChatDockProps) {
   const [status, setStatus] = useState<AgentStatus>('checking')
   const [domainKey, setDomainKey] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
   const [responding, setResponding] = useState(false)
+  const responseEndTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingCreatedVersion = useRef<{ id: string; number: number } | undefined>(undefined)
+
+  const cancelResponseEnd = useCallback(() => {
+    if (!responseEndTimer.current) return
+    clearTimeout(responseEndTimer.current)
+    responseEndTimer.current = null
+  }, [])
 
   const checkBackend = useCallback(async () => {
     setStatus('checking')
@@ -36,30 +78,96 @@ export function ChatDock({ projectId, objectName, referenceCount, onProjectRefre
     void checkBackend()
   }, [checkBackend])
 
-  const { control } = useChatKit({
-    api: {
-      url: `/api/projects/${projectId}/chatkit`,
-      domainKey: domainKey || 'not-configured',
+  useEffect(
+    () => () => {
+      cancelResponseEnd()
+      onWorkingChange?.(false)
     },
-    theme: 'dark',
+    [cancelResponseEnd, onWorkingChange],
+  )
+
+  const chatkitUrl = `/api/projects/${projectId}/chatkit`
+
+  const { control, focusComposer, setComposerValue } = useChatKit({
+    api: {
+      url: chatkitUrl,
+      domainKey: domainKey || 'not-configured',
+      fetch: (input, init) => {
+        const headers = new Headers(input instanceof Request ? input.headers : undefined)
+        new Headers(init?.headers).forEach((value, name) => headers.set(name, value))
+        if (activeVersionId) {
+          headers.set('X-Somethings-On-Base-Version-Id', activeVersionId)
+        } else {
+          headers.delete('X-Somethings-On-Base-Version-Id')
+        }
+        return fetch(input, { ...init, headers })
+      },
+    },
+    theme: {
+      colorScheme: 'dark',
+      typography: {
+        baseSize: 16,
+        fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+        fontFamilyMono: "SFMono-Regular, 'SF Mono', Menlo, Monaco, Consolas, monospace",
+      },
+      radius: 'sharp',
+      density: 'compact',
+      color: {
+        surface: { background: '#080807', foreground: '#171715' },
+        accent: { primary: '#ff4c12', level: 2 },
+        grayscale: { hue: 30, tint: 1, shade: -2 },
+      },
+    },
     frameTitle: 'SOMETHINGS-ON design conversation',
     header: { enabled: false },
     history: { enabled: false },
+    startScreen: {
+      greeting: 'What changes next?',
+      prompts: [],
+    },
     composer: {
-      placeholder: 'Describe the next change…',
+      placeholder: 'Keep ___. Change ___.',
       attachments: { enabled: false },
     },
     threadItemActions: { feedback: false, retry: true },
-    onEffect: ({ name }) => {
-      if (name === 'design.version.created') onProjectRefresh()
+    onEffect: ({ name, data }) => {
+      if (name !== 'design.version.created') return
+      const versionId = typeof data?.version_id === 'string' ? data.version_id : ''
+      const versionNumber =
+        typeof data?.version_number === 'number' ? data.version_number : Number.NaN
+      pendingCreatedVersion.current =
+        versionId && Number.isFinite(versionNumber)
+          ? { id: versionId, number: versionNumber }
+          : undefined
     },
-    onResponseStart: () => setResponding(true),
+    onResponseStart: () => {
+      cancelResponseEnd()
+      pendingCreatedVersion.current = undefined
+      setErrorMessage('')
+      setResponding(true)
+      onWorkingChange?.(true)
+    },
     onResponseEnd: () => {
-      setResponding(false)
-      onProjectRefresh()
+      cancelResponseEnd()
+      responseEndTimer.current = setTimeout(() => {
+        responseEndTimer.current = null
+        setResponding(false)
+        void (async () => {
+          const createdVersion = pendingCreatedVersion.current
+          pendingCreatedVersion.current = undefined
+          try {
+            await onProjectRefresh(createdVersion)
+          } finally {
+            onWorkingChange?.(false)
+          }
+        })()
+      }, 450)
     },
     onError: ({ error }) => {
+      cancelResponseEnd()
+      pendingCreatedVersion.current = undefined
       setResponding(false)
+      onWorkingChange?.(false)
       setErrorMessage(error.message || 'The studio conversation disconnected.')
     },
   })
@@ -67,15 +175,36 @@ export function ChatDock({ projectId, objectName, referenceCount, onProjectRefre
   return (
     <aside className="chat-dock" aria-label="Design conversation">
       <div className="chat-dock__header">
+        <strong>DESIGN</strong>
+        {responding || externalBusy ? <span>WORKING</span> : null}
+      </div>
+
+      <div className="edit-intent-bar" aria-label="Start one exact garment change">
+        <span>CHANGE ONE</span>
         <div>
-          <span className={`connection-dot connection-dot--${status}`} />
-          <strong>DESIGN GUIDE</strong>
+          {editIntents.map((intent) => (
+            <button
+              type="button"
+              key={intent.label}
+              disabled={status !== 'online' || responding || externalBusy}
+              onClick={() => {
+                void setComposerValue({ text: intent.prompt }).then(() => focusComposer())
+              }}
+            >
+              {intent.label}
+            </button>
+          ))}
         </div>
-        <span>{responding ? 'WORKING' : status === 'online' ? 'LIVE' : 'LOCAL'}</span>
       </div>
 
       {status === 'online' ? (
-        <ChatKit control={control} className="chatkit-frame" />
+        <div
+          className={`chatkit-surface ${externalBusy ? 'is-locked' : ''}`}
+          aria-busy={responding || externalBusy}
+          inert={externalBusy ? true : undefined}
+        >
+          <ChatKit key={projectId} control={control} className="chatkit-frame" />
+        </div>
       ) : (
         <div className="chat-fallback">
           <div className="fallback-thread">
@@ -88,17 +217,17 @@ export function ChatDock({ projectId, objectName, referenceCount, onProjectRefre
             </p>
           </div>
           <div className="agent-setup-card">
-            <span>AGENT CONNECTION</span>
+            <span>DESIGN GUIDE PAUSED</span>
             <p>
-              The local design service is connected. Add a ChatKit domain key to mount the hosted conversation surface; this fallback keeps the studio usable meanwhile.
+              The conversation is taking a moment. Nothing changed. Try again.
             </p>
             <button type="button" onClick={() => void checkBackend()}>
-              Check again ↗
+              Try again ↗
             </button>
           </div>
           {errorMessage && <p className="chat-error" role="alert">{errorMessage}</p>}
           <div className="fallback-composer" aria-disabled="true">
-            <span>Describe the next change…</span>
+            <span>Keep ___. Change ___.</span>
             <i>↗</i>
           </div>
         </div>

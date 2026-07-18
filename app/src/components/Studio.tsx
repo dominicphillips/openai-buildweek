@@ -1,4 +1,4 @@
-import { motion, useReducedMotion } from 'motion/react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import {
   useCallback,
   useEffect,
@@ -7,14 +7,12 @@ import {
   type KeyboardEvent,
   type MouseEvent,
   type PointerEvent,
-  type WheelEvent,
 } from 'react'
 import type { ReferenceCatalogItem, ReferenceItem, StudioSeed } from '../lib/types'
 import { CanvasContextMenu, type CanvasMenuAction } from './CanvasContextMenu'
 import { CastingPanel, type PresentationRender } from './CastingPanel'
 import { ChatDock } from './ChatDock'
-import { DevDayLookStudy } from './demo'
-import { GarmentStudy } from './GarmentStudy'
+import { GarmentSpecPanel } from './GarmentSpecPanel'
 import { InspirationPanel } from './InspirationPanel'
 
 type StudioProps = {
@@ -37,8 +35,26 @@ type BackendVersion = {
   id: string
   version_number: number
   requested_change: string
+  preserve?: string[]
+  avoid?: string[]
   status: 'concept' | 'ready'
   asset_url?: string | null
+}
+
+type ProjectSnapshot = {
+  versions?: BackendVersion[]
+  presentations?: PresentationRender[]
+  link_references?: Array<{ url: string }>
+}
+
+type StudioSelection = {
+  versionId: string
+  presentationId: string | null
+}
+
+type StoredStudioView = StudioSelection & {
+  demoVersion: DemoVersionNumber
+  found: boolean
 }
 
 const defaultViewport: Viewport = { x: 0, y: 20, zoom: 1.08, tilt: 0 }
@@ -48,11 +64,90 @@ const demoVersions: Array<{
   code: string
   label: string
   change: string
+  keep: string
+  imageUrl: string
 }> = [
-  { number: 1, code: 'WASH', label: 'Washed flight', change: 'Charcoal abrasion / full flight proportion' },
-  { number: 2, code: 'SEAM', label: 'Inside-out', change: 'Exposed construction / orange bartacks' },
-  { number: 3, code: 'CROP', label: 'Mineral crop', change: 'Cropped utility / mineral olive surface' },
+  {
+    number: 1,
+    code: 'WASH',
+    label: 'Washed flight',
+    change: 'Washed charcoal / full flight length',
+    keep: 'T-shirt / camera / pose',
+    imageUrl: '/devday/devday-look-v1.png',
+  },
+  {
+    number: 2,
+    code: 'SEAM',
+    label: 'Inside-out',
+    change: 'Exposed seams / orange bartacks',
+    keep: 'Flight shape / T-shirt / camera / pose',
+    imageUrl: '/devday/devday-look-v2.png',
+  },
+  {
+    number: 3,
+    code: 'CROP',
+    label: 'High-hip crop',
+    change: 'High-hip crop / body −90 mm',
+    keep: 'Seams / T-shirt / camera / pose',
+    imageUrl: '/devday/devday-look-v3.png',
+  },
 ]
+
+const newestVersion = (versions: BackendVersion[], rasterOnly = false) =>
+  versions.reduce<BackendVersion | undefined>((newest, candidate) => {
+    if (rasterOnly && !candidate.asset_url) return newest
+    if (!newest || candidate.version_number > newest.version_number) return candidate
+    return newest
+  }, undefined)
+
+const latestReadyPresentation = (
+  presentations: PresentationRender[],
+  versionId: string,
+) =>
+  [...presentations]
+    .reverse()
+    .find(
+      (candidate) =>
+        candidate.status === 'ready' &&
+        Boolean(candidate.asset_url) &&
+        candidate.design_version_id === versionId,
+    )
+
+const studioViewStorageKey = (projectId: string) =>
+  `somethings-on:studio-view:${projectId}:v1`
+
+const loadStudioView = (projectId: string): StoredStudioView => {
+  const fallback: StoredStudioView = {
+    versionId: '',
+    presentationId: null,
+    demoVersion: 3,
+    found: false,
+  }
+
+  try {
+    const raw = window.localStorage.getItem(studioViewStorageKey(projectId))
+    if (!raw) return fallback
+    const stored = JSON.parse(raw) as Partial<StoredStudioView>
+    const versionId =
+      typeof stored.versionId === 'string' && stored.versionId.length <= 200
+        ? stored.versionId
+        : ''
+    const presentationId =
+      typeof stored.presentationId === 'string' && stored.presentationId.length <= 200
+        ? stored.presentationId
+        : null
+    const demoVersion =
+      stored.demoVersion === 1 || stored.demoVersion === 2 || stored.demoVersion === 3
+        ? stored.demoVersion
+        : 3
+    return { versionId, presentationId, demoVersion, found: true }
+  } catch {
+    return fallback
+  }
+}
+
+const presentationLabel = (presetId: string) =>
+  presetId.replaceAll('-', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
 
 const referencePositions = [
   { x: 252, y: 128, rotate: -4 },
@@ -112,35 +207,183 @@ function ReferenceCard({
 
 export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
   const reduceMotion = useReducedMotion()
+  const [initialView] = useState(() => loadStudioView(seed.projectId))
   const [viewport, setViewport] = useState<Viewport>(defaultViewport)
-  const [activeVersion, setActiveVersion] = useState<DemoVersionNumber>(1)
+  const [activeDemoVersion, setActiveDemoVersion] = useState<DemoVersionNumber>(
+    initialView.demoVersion,
+  )
   const [backendVersions, setBackendVersions] = useState<BackendVersion[]>([])
-  const [activeBackendVersionId, setActiveBackendVersionId] = useState('')
-  const [revisionCount, setRevisionCount] = useState(1)
+  const [backendPresentations, setBackendPresentations] = useState<PresentationRender[]>([])
+  const [selection, setSelection] = useState<StudioSelection>({
+    versionId: initialView.versionId,
+    presentationId: initialView.presentationId,
+  })
   const [inspirationOpen, setInspirationOpen] = useState(false)
   const [castingOpen, setCastingOpen] = useState(false)
+  const [specOpen, setSpecOpen] = useState(false)
   const [contextMenu, setContextMenu] = useState<ContextMenuPoint | null>(null)
-  const [castingPreset, setCastingPreset] = useState('Sun-Faded Minimalist')
-  const [presentation, setPresentation] = useState<PresentationRender | null>(null)
+  const [projectHydrated, setProjectHydrated] = useState(false)
+  const [generationWorking, setGenerationWorking] = useState(false)
+  const [generationError, setGenerationError] = useState('')
+  const [editorialDirection, setEditorialDirection] = useState<string | null>(null)
+  const [failedDemoImages, setFailedDemoImages] = useState<string[]>([])
   const canvasRef = useRef<HTMLDivElement>(null)
   const syncedReferenceIds = useRef(new Set<string>())
+  const serverReferenceUrls = useRef(new Set<string>())
+  const initialGenerationProjects = useRef(new Set<string>())
   const dragOrigin = useRef<{ pointerX: number; pointerY: number; x: number; y: number } | null>(null)
 
-  const applyProjectSnapshot = useCallback((snapshot: { versions?: BackendVersion[] }) => {
-    const versions = snapshot.versions ?? []
-    setBackendVersions(versions)
-    setActiveBackendVersionId((current) =>
-      versions.some((version) => version.id === current) ? current : (versions.at(-1)?.id ?? ''),
-    )
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        studioViewStorageKey(seed.projectId),
+        JSON.stringify({
+          versionId: selection.versionId,
+          presentationId: selection.presentationId,
+          demoVersion: activeDemoVersion,
+        }),
+      )
+    } catch {
+      // The authoritative version history remains on the backend if storage is unavailable.
+    }
+  }, [activeDemoVersion, seed.projectId, selection])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const handleWheel = (event: globalThis.WheelEvent) => {
+      event.preventDefault()
+
+      const bounds = canvas.getBoundingClientRect()
+      if (bounds.width === 0 || bounds.height === 0) return
+
+      const pointerX = event.clientX - bounds.left - bounds.width / 2
+      const pointerY = event.clientY - bounds.top - bounds.height / 2
+      const deltaScale = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? bounds.height : 1
+      const verticalDelta = event.deltaY * deltaScale
+      const tiltDelta = (event.deltaY || event.deltaX) * deltaScale
+      const shouldTilt = event.shiftKey
+
+      setContextMenu(null)
+      setViewport((current) => {
+        if (shouldTilt) {
+          return { ...current, tilt: clamp(current.tilt + tiltDelta * 0.018, -12, 12) }
+        }
+
+        const zoom = clamp(current.zoom * Math.exp(-verticalDelta * 0.0012), 0.35, 4)
+        const ratio = zoom / current.zoom
+        return {
+          ...current,
+          zoom,
+          x: pointerX - (pointerX - current.x) * ratio,
+          y: pointerY - (pointerY - current.y) * ratio,
+        }
+      })
+    }
+
+    canvas.addEventListener('wheel', handleWheel, { passive: false })
+    return () => canvas.removeEventListener('wheel', handleWheel)
   }, [])
 
-  const refreshProject = useCallback(async () => {
+  const applyProjectSnapshot = useCallback(
+    (
+      snapshot: ProjectSnapshot,
+      options: {
+        preferredVersionId?: string
+        showCanonical?: boolean
+        restoreLatestPresentation?: boolean
+      } = {},
+    ) => {
+      const versions = snapshot.versions ?? []
+      const presentations = snapshot.presentations ?? []
+      const newest = newestVersion(versions, true) ?? newestVersion(versions)
+      setBackendVersions(versions)
+      setBackendPresentations(presentations)
+      serverReferenceUrls.current = new Set(
+        (snapshot.link_references ?? []).map((reference) => reference.url),
+      )
+      setSelection((current) => {
+        const preferredVersion = versions.find(
+          (candidate) => candidate.id === options.preferredVersionId,
+        )
+        const currentVersion = versions.find((candidate) => candidate.id === current.versionId)
+        const versionId = preferredVersion?.id ?? currentVersion?.id ?? newest?.id ?? ''
+        const currentPresentation = presentations.find(
+          (candidate) =>
+            candidate.id === current.presentationId &&
+            candidate.status === 'ready' &&
+            Boolean(candidate.asset_url) &&
+            candidate.design_version_id === versionId,
+        )
+        const restoredPresentation = options.restoreLatestPresentation
+          ? latestReadyPresentation(presentations, versionId)
+          : undefined
+        return {
+          versionId,
+          presentationId: options.showCanonical
+            ? null
+            : (currentPresentation?.id ?? restoredPresentation?.id ?? null),
+        }
+      })
+      setProjectHydrated(true)
+    },
+    [],
+  )
+
+  const refreshProject = useCallback(async (
+    options?: Parameters<typeof applyProjectSnapshot>[1],
+  ) => {
     const response = await fetch(`/api/projects/${seed.projectId}`, {
       headers: { Accept: 'application/json' },
     })
     if (!response.ok) return
-    applyProjectSnapshot((await response.json()) as { versions?: BackendVersion[] })
+    applyProjectSnapshot((await response.json()) as ProjectSnapshot, options)
   }, [applyProjectSnapshot, seed.projectId])
+
+  const handleProjectRefresh = useCallback(
+    async (createdVersion?: { id: string; number: number }) => {
+      await refreshProject(
+        createdVersion
+          ? { preferredVersionId: createdVersion.id, showCanonical: true }
+          : undefined,
+      )
+    },
+    [refreshProject],
+  )
+
+  const handleEditorialPending = useCallback((pending: boolean, direction?: string) => {
+    setEditorialDirection(pending ? direction ?? 'Selected direction' : null)
+  }, [])
+
+  const createInitialVersion = useCallback(async () => {
+    const generationKey = `${seed.projectId}:${seed.objectName.trim().toLowerCase()}`
+    if (initialGenerationProjects.current.has(generationKey)) return
+    initialGenerationProjects.current.add(generationKey)
+    setGenerationError('')
+    setGenerationWorking(true)
+    try {
+      const response = await fetch(`/api/projects/${seed.projectId}/versions`, {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requested_change: `Create the first product-view study for the ${seed.objectName}.`,
+          preserve: ['full garment visibility', 'production-legible construction'],
+          avoid: ['logos or readable text', 'a person or extra styling'],
+        }),
+      })
+      const body = (await response.json()) as BackendVersion & { detail?: string }
+      if (!response.ok) throw new Error(body.detail || 'The first version did not finish.')
+      await refreshProject({ preferredVersionId: body.id, showCanonical: true })
+    } catch (error) {
+      initialGenerationProjects.current.delete(generationKey)
+      setGenerationError(
+        error instanceof Error ? error.message : 'The first version did not finish.',
+      )
+    } finally {
+      setGenerationWorking(false)
+    }
+  }, [refreshProject, seed.objectName, seed.projectId])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -159,41 +402,69 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
     })
       .then(async (response) => {
         if (!response.ok) return
-        applyProjectSnapshot((await response.json()) as { versions?: BackendVersion[] })
+        const snapshot = (await response.json()) as ProjectSnapshot
+        applyProjectSnapshot(snapshot, {
+          restoreLatestPresentation: !initialView.found,
+        })
+        if (!(snapshot.versions ?? []).some((version) => Boolean(version.asset_url))) {
+          await createInitialVersion()
+        }
       })
       .catch(() => undefined)
     return () => controller.abort()
-  }, [applyProjectSnapshot, seed.objectName, seed.projectId, seed.selectedBrands])
+  }, [applyProjectSnapshot, createInitialVersion, initialView.found, seed.objectName, seed.projectId, seed.selectedBrands])
 
   useEffect(() => {
+    if (!projectHydrated) return
     for (const reference of seed.references) {
       if (syncedReferenceIds.current.has(reference.id)) continue
-      syncedReferenceIds.current.add(reference.id)
 
       if (reference.kind === 'image' && reference.file) {
+        syncedReferenceIds.current.add(reference.id)
         const form = new FormData()
         form.append('file', reference.file)
         void fetch(`/api/projects/${seed.projectId}/references`, {
           method: 'POST',
           headers: { Accept: 'application/json' },
           body: form,
-        }).catch(() => undefined)
+        }).catch(() => syncedReferenceIds.current.delete(reference.id))
         continue
       }
 
+      const explicitSource = reference.source?.startsWith('http://') || reference.source?.startsWith('https://')
+        ? reference.source
+        : undefined
       const url =
-        reference.kind === 'catalog' && reference.previewUrl
+        explicitSource ??
+        (reference.kind === 'catalog' && reference.previewUrl
           ? new URL(reference.previewUrl, window.location.origin).toString()
-          : reference.source
+          : reference.source)
       if (url?.startsWith('http://') || url?.startsWith('https://')) {
+        if (serverReferenceUrls.current.has(url)) {
+          syncedReferenceIds.current.add(reference.id)
+          continue
+        }
+        syncedReferenceIds.current.add(reference.id)
+        serverReferenceUrls.current.add(url)
         void fetch(`/api/projects/${seed.projectId}/reference-links`, {
           method: 'POST',
           headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
           body: JSON.stringify({ url, label: reference.name }),
-        }).catch(() => undefined)
+        })
+          .then((response) => {
+            if (!response.ok) {
+              syncedReferenceIds.current.delete(reference.id)
+              serverReferenceUrls.current.delete(url)
+              return
+            }
+          })
+          .catch(() => {
+            syncedReferenceIds.current.delete(reference.id)
+            serverReferenceUrls.current.delete(url)
+          })
       }
     }
-  }, [seed.projectId, seed.references])
+  }, [projectHydrated, seed.projectId, seed.references])
 
   const setZoom = (zoom: number) => {
     setViewport((current) => ({ ...current, zoom: clamp(zoom, 0.35, 4) }))
@@ -204,35 +475,24 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
   }
 
   const openInspiration = () => {
+    setContextMenu(null)
     setCastingOpen(false)
+    setSpecOpen(false)
     setInspirationOpen(true)
   }
 
   const openCasting = () => {
+    setContextMenu(null)
     setInspirationOpen(false)
+    setSpecOpen(false)
     setCastingOpen(true)
   }
 
-  const onWheel = (event: WheelEvent<HTMLDivElement>) => {
-    event.preventDefault()
+  const openSpec = () => {
     setContextMenu(null)
-    setViewport((current) => {
-      if (event.shiftKey) {
-        return { ...current, tilt: clamp(current.tilt + event.deltaY * 0.018, -12, 12) }
-      }
-
-      const bounds = event.currentTarget.getBoundingClientRect()
-      const pointerX = event.clientX - bounds.left - bounds.width / 2
-      const pointerY = event.clientY - bounds.top - bounds.height / 2
-      const zoom = clamp(current.zoom * Math.exp(-event.deltaY * 0.0012), 0.35, 4)
-      const ratio = zoom / current.zoom
-      return {
-        ...current,
-        zoom,
-        x: pointerX - (pointerX - current.x) * ratio,
-        y: pointerY - (pointerY - current.y) * ratio,
-      }
-    })
+    setInspirationOpen(false)
+    setCastingOpen(false)
+    setSpecOpen(true)
   }
 
   const onKeyboard = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -250,10 +510,12 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
       '0': () => setViewport(defaultViewport),
       i: openInspiration,
       m: openCasting,
+      s: openSpec,
       Escape: () => {
         setContextMenu(null)
         setInspirationOpen(false)
         setCastingOpen(false)
+        setSpecOpen(false)
       },
     }
     const action = actions[event.key]
@@ -276,11 +538,13 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
   }
 
   const pan = (event: PointerEvent<HTMLDivElement>) => {
-    if (!dragOrigin.current) return
+    const origin = dragOrigin.current
+    if (!origin) return
+    const { clientX, clientY } = event
     setViewport((current) => ({
       ...current,
-      x: dragOrigin.current!.x + event.clientX - dragOrigin.current!.pointerX,
-      y: dragOrigin.current!.y + event.clientY - dragOrigin.current!.pointerY,
+      x: origin.x + clientX - origin.pointerX,
+      y: origin.y + clientY - origin.pointerY,
     }))
   }
 
@@ -316,12 +580,12 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
       {
         id: item.id,
         kind: 'catalog',
-        name: item.title,
+        name: item.product_name ?? item.metadata.product_name ?? item.title,
         previewUrl: item.image_url,
-        source: 'local-reference-catalog',
+        source: item.source_url ?? item.metadata.source_url ?? 'product-inspiration-catalog',
         labelId: item.metadata.label_association.id,
-        labelName: item.metadata.label_association.name,
-        tags: item.metadata.tags,
+        labelName: item.brand ?? item.metadata.brand ?? item.metadata.label_association.name,
+        tags: item.neutral_attributes ?? item.metadata.neutral_attributes ?? item.metadata.tags,
       },
     ])
   }
@@ -330,19 +594,30 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
     onReferencesChange(seed.references.filter((reference) => reference.id !== referenceId))
   }
 
+  const selectBackendVersion = (versionId: string) => {
+    setSelection((current) => {
+      if (current.versionId === versionId) return current
+      const linkedPresentation = latestReadyPresentation(backendPresentations, versionId)
+      return {
+        versionId,
+        presentationId: linkedPresentation?.id ?? null,
+      }
+    })
+  }
+
   const contextActions: CanvasMenuAction[] = [
     {
       id: 'inspiration',
       label: 'Open inspiration',
-      detail: '30 local garment studies',
+      detail: 'Browse sourced products',
       shortcut: 'I',
       tone: 'signal',
       onSelect: openInspiration,
     },
     {
       id: 'casting',
-      label: 'Style on a model',
-      detail: 'Separate lookbook render',
+      label: 'Open editorial',
+      detail: 'Cast, style, and place the look',
       shortcut: 'M',
       onSelect: openCasting,
     },
@@ -375,15 +650,52 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
     },
   ]
 
-  const version = demoVersions[activeVersion - 1]
   const backendVersion =
-    backendVersions.find((item) => item.id === activeBackendVersionId) ?? backendVersions.at(-1)
-  const tasteTranslation = seed.selectedBrands.length
-    ? `${seed.selectedBrands.map((brand) => brand.name).join(' + ')} → ${seed.selectedBrands
-        .flatMap((brand) => brand.tags)
-        .slice(0, 4)
-        .join(' · ')}`
-    : 'OPEN TASTE'
+    backendVersions.find((item) => item.id === selection.versionId) ??
+    newestVersion(backendVersions, true) ??
+    newestVersion(backendVersions)
+  const presentation =
+    backendPresentations.find(
+      (candidate) =>
+        candidate.id === selection.presentationId &&
+        candidate.design_version_id === backendVersion?.id &&
+        candidate.status === 'ready' &&
+        Boolean(candidate.asset_url),
+    ) ?? null
+  const hasBackendRender = Boolean(backendVersion?.asset_url)
+  const hasAnyBackendRaster = backendVersions.some((item) => Boolean(item.asset_url))
+  const usePreparedDemo = seed.demoMode && !hasAnyBackendRaster
+  const demoVersion = demoVersions[activeDemoVersion - 1]
+  const seededDemoVersion = seed.demoMode
+    ? demoVersions.find((item) => item.number === backendVersion?.version_number)
+    : undefined
+  const demoImageFailed = failedDemoImages.includes(demoVersion.imageUrl)
+  const keepNote = usePreparedDemo
+    ? demoVersion.keep
+    : (seededDemoVersion?.keep ?? backendVersion?.preserve?.[0]?.trim())
+  const changeNote = usePreparedDemo
+    ? demoVersion.change
+    : (seededDemoVersion?.change ?? backendVersion?.requested_change.trim())
+  const railVersions = backendVersions.some((item) => item.status === 'ready' && item.asset_url)
+    ? backendVersions
+        .filter((item) => item.status === 'ready' && item.asset_url)
+        .sort((left, right) => left.version_number - right.version_number)
+    : [{ id: 'base', version_number: 1, requested_change: 'No raster yet', status: 'concept' as const }]
+  const workingState = editorialDirection
+    ? {
+        key: 'editorial',
+        title: 'WORKING ON IT',
+        detail: `EDITORIAL / ${editorialDirection.toUpperCase()}`,
+        note: 'Pose, place, and light are changing. The garment stays.',
+      }
+    : generationWorking
+      ? {
+          key: 'generation',
+          title: 'WORKING ON IT',
+          detail: 'APPLYING YOUR CHANGE',
+          note: 'The current version stays here until the next draft is ready.',
+        }
+      : null
 
   return (
     <main className="studio-shell">
@@ -391,10 +703,10 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
         projectId={seed.projectId}
         objectName={seed.objectName}
         referenceCount={seed.references.length}
-        onProjectRefresh={() => {
-          setRevisionCount((current) => current + 1)
-          void refreshProject()
-        }}
+        activeVersionId={backendVersion?.asset_url ? backendVersion.id : undefined}
+        externalBusy={Boolean(editorialDirection)}
+        onProjectRefresh={handleProjectRefresh}
+        onWorkingChange={setGenerationWorking}
       />
 
       <section className="studio-space">
@@ -402,8 +714,12 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
           <div className="studio-wordmark">
             SOMETHINGS<span>—ON</span>
           </div>
-          <div className="studio-project">
-            <span>{seed.demoMode ? 'DEMO / OPENAI DEV DAY' : 'PROJECT / 001'}</span>
+          <div
+            className="studio-project"
+            title={seed.demoMode ? 'DEV DAY / 001 · DISTRESSED BOMBER + WHITE TEE' : `PROJECT / 001 · ${seed.objectName.toUpperCase()}`}
+          >
+            <span>{seed.demoMode ? 'DEV DAY / 001' : 'PROJECT / 001'}</span>
+            <i aria-hidden="true">·</i>
             <strong>{seed.demoMode ? 'DISTRESSED BOMBER + WHITE TEE' : seed.objectName.toUpperCase()}</strong>
           </div>
           <div className="studio-actions">
@@ -412,16 +728,25 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
               className={inspirationOpen ? 'is-active' : undefined}
               onClick={() => (inspirationOpen ? setInspirationOpen(false) : openInspiration())}
             >
-              Inspiration <i>{String(seed.references.length).padStart(2, '0')}</i>
+              Inspiration
             </button>
             <button
               type="button"
               className={castingOpen ? 'is-active' : undefined}
               onClick={() => (castingOpen ? setCastingOpen(false) : openCasting())}
             >
-              Model <i>↗</i>
+              Editorial
             </button>
-            <button type="button" onClick={onReset}>New object</button>
+            <button
+              type="button"
+              className={specOpen ? 'is-active' : undefined}
+              onClick={() => (specOpen ? setSpecOpen(false) : openSpec())}
+              aria-haspopup="dialog"
+              aria-expanded={specOpen}
+            >
+              Spec
+            </button>
+            <button type="button" onClick={onReset}>New garment</button>
           </div>
         </header>
 
@@ -437,12 +762,30 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
         <CastingPanel
           open={castingOpen}
           projectId={seed.projectId}
-          demoMode={seed.demoMode}
-          onPreviewPreset={(preset) => setCastingPreset(preset.display_name)}
+          designVersionId={backendVersion?.asset_url ? backendVersion.id : undefined}
+          selectedPresetId={presentation?.preset_id}
+          blocked={generationWorking}
+          onPreviewPreset={() => undefined}
           onPresentationReady={(nextPresentation) => {
-            setPresentation(nextPresentation)
+            setBackendPresentations((current) => [
+              ...current.filter((candidate) => candidate.id !== nextPresentation.id),
+              nextPresentation,
+            ])
+            setSelection({
+              versionId: nextPresentation.design_version_id,
+              presentationId: nextPresentation.id,
+            })
           }}
+          onPendingChange={handleEditorialPending}
           onClose={() => setCastingOpen(false)}
+        />
+
+        <GarmentSpecPanel
+          open={specOpen}
+          objectName={seed.objectName}
+          demoVersion={usePreparedDemo ? { number: activeDemoVersion, change: demoVersion.change } : undefined}
+          version={usePreparedDemo ? undefined : backendVersion}
+          onClose={() => setSpecOpen(false)}
         />
 
         <div
@@ -450,7 +793,6 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
           className="canvas-viewport"
           tabIndex={0}
           aria-label="Infinite design canvas. Drag or use arrow keys to pan, scroll to zoom, and shift-scroll or bracket keys to tilt. Right-click for canvas tools."
-          onWheel={onWheel}
           onKeyDown={onKeyboard}
           onPointerDown={startPan}
           onPointerMove={pan}
@@ -477,126 +819,174 @@ export function Studio({ seed, onReferencesChange, onReset }: StudioProps) {
             ))}
 
             <motion.div
-              className="canvas-design"
+              className={`canvas-design ${workingState ? 'is-working' : ''}`}
+              aria-busy={Boolean(workingState)}
               initial={{ opacity: 0, scale: 0.94 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: reduceMotion ? 0 : 0.2, duration: reduceMotion ? 0 : 0.7 }}
             >
               {presentation?.asset_url ? (
                 <figure className="presentation-study">
-                  <img src={presentation.asset_url} alt={`Fictional model presentation in ${castingPreset}`} />
-                  <figcaption>
-                    <span>PRESENTATION / {presentation.id}</span>
-                    <strong>DESIGN UNCHANGED</strong>
-                  </figcaption>
-                </figure>
-              ) : seed.demoMode ? (
-                <figure className="devday-look-study">
-                  <DevDayLookStudy
-                    version={activeVersion}
-                    label={`Version ${activeVersion}: fictional adult model wearing the DevDay ${version.label} distressed bomber over a white T-shirt`}
+                  <img
+                    src={presentation.asset_url}
+                    alt={`Editorial presentation in ${presentationLabel(presentation.preset_id)}`}
                   />
                   <figcaption>
-                    <span>DEV DAY / VERSION {String(activeVersion).padStart(2, '0')}</span>
-                    <strong>{version.label.toUpperCase()}</strong>
-                    <small>FICTIONAL ADULT / DESIGN STUDY</small>
+                    <span>
+                      {backendVersion
+                        ? `EDITORIAL / VERSION ${String(backendVersion.version_number).padStart(2, '0')}`
+                        : 'EDITORIAL'}
+                    </span>
+                    <strong>DESIGN UNCHANGED</strong>
                   </figcaption>
                 </figure>
               ) : backendVersion?.asset_url ? (
                 <figure className="presentation-study design-version-study">
-                  <img src={backendVersion.asset_url} alt={`Design version ${backendVersion.version_number}: ${backendVersion.requested_change}`} />
+                  <img
+                    key={backendVersion.asset_url}
+                    src={backendVersion.asset_url}
+                    alt={`Current design version ${backendVersion.version_number}: ${backendVersion.requested_change}`}
+                  />
                   <figcaption>
                     <span>DESIGN / VERSION {String(backendVersion.version_number).padStart(2, '0')}</span>
                     <strong>{backendVersion.requested_change.toUpperCase()}</strong>
                   </figcaption>
                 </figure>
+              ) : usePreparedDemo && !demoImageFailed ? (
+                <figure className="devday-look-study devday-photo-study">
+                  <img
+                    key={demoVersion.imageUrl}
+                    src={demoVersion.imageUrl}
+                    alt={`Generated DevDay design study, version ${activeDemoVersion}: ${demoVersion.label} distressed bomber and T-shirt`}
+                    onError={() => {
+                      setFailedDemoImages((current) =>
+                        current.includes(demoVersion.imageUrl)
+                          ? current
+                          : [...current, demoVersion.imageUrl],
+                      )
+                    }}
+                  />
+                  <figcaption>
+                    <span>DEV DAY / VERSION {String(activeDemoVersion).padStart(2, '0')}</span>
+                    <strong>{demoVersion.label.toUpperCase()}</strong>
+                    <small>DESIGN STUDY / PREPARED VERSION</small>
+                  </figcaption>
+                </figure>
               ) : (
-                <GarmentStudy label={seed.objectName} />
+                <div className="image-generation-empty" role="status">
+                  <span>VERSION 01</span>
+                  <strong>{generationError || 'Making the first product view.'}</strong>
+                  <p>{generationError ? 'Your brief is saved.' : seed.objectName}</p>
+                  {generationError && (
+                    <button type="button" onClick={() => void createInitialVersion()}>
+                      Try again
+                    </button>
+                  )}
+                </div>
               )}
               <div className="design-selection" aria-hidden="true">
                 <i /><i /><i /><i />
               </div>
+              <AnimatePresence mode="wait">
+                {workingState && (
+                  <motion.div
+                    key={workingState.key}
+                    className="canvas-work-state"
+                    role="status"
+                    aria-live="polite"
+                    aria-atomic="true"
+                    initial={{ opacity: 0, y: reduceMotion ? 0 : 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: reduceMotion ? 0 : -8 }}
+                    transition={{ duration: reduceMotion ? 0 : 0.26 }}
+                  >
+                    <span>{workingState.title}</span>
+                    <strong>{workingState.detail}</strong>
+                    <p>{workingState.note}</p>
+                    <div className="canvas-work-state__mark" aria-hidden="true">
+                      <i /><i /><i />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
 
-            <div className="canvas-note canvas-note--one">
-              KEEP / {seed.demoMode ? 'WHITE TEE' : 'WEIGHT'}
-            </div>
-            <div className="canvas-note canvas-note--two">
-              CHANGE / {seed.demoMode ? 'BOMBER SURFACE' : 'NECKLINE'}
-            </div>
+            {(presentation?.asset_url || hasBackendRender || (usePreparedDemo && !demoImageFailed)) && (
+              <>
+                {keepNote && (
+                  <div className="canvas-note canvas-note--one" title={`KEEP / ${keepNote}`}>
+                    KEEP / {keepNote.toUpperCase()}
+                  </div>
+                )}
+                {changeNote && (
+                  <div className="canvas-note canvas-note--two" title={`CHANGE / ${changeNote}`}>
+                    CHANGE / {changeNote.toUpperCase()}
+                  </div>
+                )}
+              </>
+            )}
           </motion.div>
 
-          <div className="canvas-controls" aria-label="Canvas view controls">
-            <button type="button" onClick={() => setZoom(viewport.zoom / 1.25)} aria-label="Zoom out">−</button>
-            <span>{Math.round(viewport.zoom * 100)}%</span>
-            <button type="button" onClick={() => setZoom(viewport.zoom * 1.25)} aria-label="Zoom in">+</button>
-            <button type="button" onClick={() => setTilt(viewport.tilt - 2)} aria-label="Tilt left">↶</button>
-            <span>{Math.round(viewport.tilt)}°</span>
-            <button type="button" onClick={() => setTilt(viewport.tilt + 2)} aria-label="Tilt right">↷</button>
-            <button type="button" onClick={() => setViewport(defaultViewport)}>Center</button>
-          </div>
+          {!inspirationOpen && !castingOpen && !specOpen && (
+            <>
+              <div className="canvas-controls" aria-label="Canvas view controls">
+                <button type="button" onClick={() => setZoom(viewport.zoom / 1.25)} aria-label="Zoom out">−</button>
+                <span>{Math.round(viewport.zoom * 100)}%</span>
+                <button type="button" onClick={() => setZoom(viewport.zoom * 1.25)} aria-label="Zoom in">+</button>
+                <button type="button" onClick={() => setTilt(viewport.tilt - 2)} aria-label="Tilt left">↶</button>
+                <span>{Math.round(viewport.tilt)}°</span>
+                <button type="button" onClick={() => setTilt(viewport.tilt + 2)} aria-label="Tilt right">↷</button>
+                <button type="button" onClick={() => setViewport(defaultViewport)}>Center</button>
+              </div>
 
-          <p className="canvas-help">Drag to pan · scroll to scale · shift + scroll to tilt · right-click for tools</p>
-
-          {contextMenu && (
-            <CanvasContextMenu
-              x={contextMenu.x}
-              y={contextMenu.y}
-              actions={contextActions}
-              onClose={closeContextMenu}
-            />
+              {contextMenu && (
+                <CanvasContextMenu
+                  x={contextMenu.x}
+                  y={contextMenu.y}
+                  actions={contextActions}
+                  onClose={closeContextMenu}
+                />
+              )}
+            </>
           )}
         </div>
 
         <aside className="version-rail" aria-label="Design versions">
           <span>VERSIONS</span>
-          {seed.demoMode
+          {usePreparedDemo
             ? demoVersions.map((item) => (
                 <button
                   type="button"
                   key={item.number}
-                  className={`version-thumb ${activeVersion === item.number ? 'is-current' : ''}`}
+                  className={`version-thumb ${activeDemoVersion === item.number ? 'is-current' : ''}`}
                   aria-label={`Version ${item.number}: ${item.label}`}
-                  aria-pressed={activeVersion === item.number}
+                  aria-pressed={activeDemoVersion === item.number}
                   onClick={() => {
-                    setActiveVersion(item.number)
-                    setPresentation(null)
+                    setActiveDemoVersion(item.number)
                   }}
                 >
                   <i>{String(item.number).padStart(2, '0')}</i>
-                  <b>{item.code}</b>
+                  <b>{item.label}</b>
                 </button>
               ))
-            : (backendVersions.length ? backendVersions : [{ id: 'base', version_number: 1, requested_change: 'Base', status: 'concept' as const }]).map((item) => (
+            : railVersions.map((item) => (
                 <button
                   type="button"
                   key={item.id}
                   className={`version-thumb ${backendVersion?.id === item.id || (!backendVersion && item.id === 'base') ? 'is-current' : ''}`}
                   aria-label={`Version ${item.version_number}: ${item.requested_change}`}
-                  aria-pressed={backendVersion?.id === item.id}
+                  aria-pressed={backendVersion?.id === item.id || (!backendVersion && item.id === 'base')}
                   onClick={() => {
-                    setActiveBackendVersionId(item.id)
-                    setPresentation(null)
+                    if (item.id === 'base') return
+                    selectBackendVersion(item.id)
                   }}
+                  title={item.requested_change}
                 >
                   <i>{String(item.version_number).padStart(2, '0')}</i>
-                  <b>{item.status === 'ready' ? 'READY' : 'BASE'}</b>
+                  <b>{item.status === 'ready' ? item.requested_change : 'Start'}</b>
                 </button>
               ))}
         </aside>
-
-        <footer className="studio-footer">
-          <span>
-            {seed.demoMode
-              ? `V${String(activeVersion).padStart(2, '0')} / ${version.label.toUpperCase()}`
-              : `V${String(backendVersion?.version_number ?? 1).padStart(2, '0')} / ${backendVersion?.status.toUpperCase() ?? 'BASE'}`}
-          </span>
-          <p>
-            {seed.demoMode ? version.change : (backendVersion?.requested_change ?? seed.objectName)} · REFERENCE →{' '}
-            {tasteTranslation}
-          </p>
-          <span>{presentation ? `PRESENTATION / ${castingPreset.toUpperCase()}` : `STUDY ${String(revisionCount).padStart(3, '0')}`}</span>
-        </footer>
       </section>
     </main>
   )

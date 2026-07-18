@@ -1,3 +1,4 @@
+export { BomberIcon } from './BomberIcon'
 export { PantsIcon } from './PantsIcon'
 export { ShoeIcon } from './ShoeIcon'
 export { TShirtIcon } from './TShirtIcon'

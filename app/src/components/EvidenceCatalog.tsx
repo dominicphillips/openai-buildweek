@@ -71,7 +71,7 @@ export function EvidenceCatalog({ selectedIds, selectionCount, onToggle }: Evide
         {status === 'error' && (
           <div className="panel-state">
             <strong>The local shelf is offline.</strong>
-            <span>You can still add your own references. Start the API on port 43174 to browse the seeded set.</span>
+            <span>You can still add your own images or links and keep moving.</span>
           </div>
         )}
         {status === 'ready' && (

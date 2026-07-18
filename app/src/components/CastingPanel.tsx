@@ -35,16 +35,17 @@ export type PresentationRender = {
   status: string
   asset_url?: string
   error_code?: string
-  fixture?: boolean
 }
 
 type CastingPanelProps = {
   open: boolean
   projectId: string
-  demoMode?: boolean
+  designVersionId?: string
   selectedPresetId?: string
+  blocked?: boolean
   onPreviewPreset: (preset: CastingPreset) => void
   onPresentationReady: (presentation: PresentationRender) => void
+  onPendingChange?: (pending: boolean, direction?: string) => void
   onClose: () => void
 }
 
@@ -71,10 +72,12 @@ const controlLabels: Record<keyof CastingControls, string> = {
 export function CastingPanel({
   open,
   projectId,
-  demoMode = false,
+  designVersionId,
   selectedPresetId,
+  blocked = false,
   onPreviewPreset,
   onPresentationReady,
+  onPendingChange,
   onClose,
 }: CastingPanelProps) {
   const reduceMotion = useReducedMotion()
@@ -83,6 +86,10 @@ export function CastingPanel({
   const [controls, setControls] = useState<CastingControls>(defaultControls)
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'submitting' | 'error'>('idle')
   const [message, setMessage] = useState('')
+
+  useEffect(() => {
+    if (selectedPresetId) setPresetId(selectedPresetId)
+  }, [selectedPresetId])
 
   useEffect(() => {
     if (!open || collection || status === 'loading') return
@@ -94,7 +101,9 @@ export function CastingPanel({
       })
       .then((body) => {
         setCollection(body)
-        const initial = body.presets.find((preset) => preset.id === presetId) ?? body.presets[0]
+        const initial =
+          body.presets.find((preset) => preset.id === (selectedPresetId ?? presetId)) ??
+          body.presets[0]
         if (initial) {
           setPresetId(initial.id)
           onPreviewPreset(initial)
@@ -105,7 +114,7 @@ export function CastingPanel({
         setMessage(error.message)
         setStatus('error')
       })
-  }, [collection, onPreviewPreset, open, presetId, status])
+  }, [collection, onPreviewPreset, open, presetId, selectedPresetId, status])
 
   const selectedPreset = useMemo(
     () => collection?.presets.find((preset) => preset.id === presetId),
@@ -119,43 +128,44 @@ export function CastingPanel({
   }
 
   const makePresentation = async () => {
-    setStatus('submitting')
-    setMessage('Building a separate lookbook view…')
-    if (demoMode) {
-      const fixture: PresentationRender = {
-        id: `demo_${presetId}`,
-        design_version_id: 'demo_version',
-        preset_id: presetId,
-        status: 'ready',
-        fixture: true,
-      }
-      onPresentationReady(fixture)
-      setMessage('Direction applied to the local demo view. The garment version is unchanged.')
-      setStatus('ready')
+    if (blocked || status === 'submitting') return
+    if (!designVersionId) {
+      setMessage('Make the first garment version before making an editorial view.')
       return
     }
+    const direction = selectedPreset?.display_name ?? presetId.replaceAll('-', ' ')
+    setStatus('submitting')
+    setMessage('Working on the editorial view. Your garment stays in place.')
+    onPendingChange?.(true, direction)
+    onClose()
     try {
       const response = await fetch(`/api/projects/${projectId}/presentations`, {
         method: 'POST',
         headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ preset_id: presetId, controls }),
+        body: JSON.stringify({
+          preset_id: presetId,
+          design_version_id: designVersionId,
+          controls,
+        }),
       })
       const body = (await response.json()) as PresentationRender & { detail?: string }
-      if (!response.ok) throw new Error(body.detail || 'That lookbook view did not finish.')
+      if (!response.ok) throw new Error(body.detail || 'That editorial view did not finish.')
       if (body.status !== 'ready' || !body.asset_url) {
         if (body.error_code === 'garment_drift') {
           throw new Error(
-            "The garment changed in this render, so we didn't save it. Try another casting direction.",
+            "The garment changed, so this view was not saved. Try a simpler editorial direction.",
           )
         }
-        throw new Error('That lookbook view did not finish. Your design is safe.')
+        throw new Error('That editorial view did not finish. The current version has not changed.')
       }
       onPresentationReady(body)
-      setMessage('Lookbook view ready. The design version is unchanged.')
+      setMessage('Editorial view ready. The design version is unchanged.')
       setStatus('ready')
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'That lookbook view did not finish.')
+      setMessage(error instanceof Error ? error.message : 'That editorial view did not finish.')
       setStatus('ready')
+    } finally {
+      onPendingChange?.(false)
     }
   }
 
@@ -164,7 +174,8 @@ export function CastingPanel({
       {open && (
         <motion.aside
           className="casting-panel"
-          aria-label="Fictional model casting"
+          aria-label="Editorial direction"
+          aria-busy={status === 'submitting'}
           initial={{ opacity: 0, x: reduceMotion ? 0 : 28 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: reduceMotion ? 0 : 22 }}
@@ -172,28 +183,28 @@ export function CastingPanel({
         >
           <header className="casting-panel__header">
             <div>
-              <span>CASTING DIRECTION</span>
-              <h2>Choose a point of view, not a person.</h2>
-              <p>Pose, place, and light can change. Your garment stays untouched.</p>
+              <span>EDITORIAL</span>
+              <h2>See it worn.</h2>
+              <p>Choose the wearer, stance, setting, and light. The garment itself won’t change.</p>
             </div>
-            <button type="button" onClick={onClose} aria-label="Close casting panel">Close ×</button>
+            <button type="button" onClick={onClose} aria-label="Close editorial panel">Close ×</button>
           </header>
 
           <ScrollArea className="casting-scroll" type="always" scrollHideDelay={0}>
-            {status === 'loading' && <p className="panel-state">Opening casting directions…</p>}
+            {status === 'loading' && <p className="panel-state">Opening editorial directions…</p>}
             {status === 'error' && <p className="panel-state">{message}</p>}
             {collection && (
               <div className="casting-panel__body">
-                <ul className="casting-presets" aria-label="Casting directions">
-                  {collection.presets.map((preset, index) => (
+                <ul className="casting-presets" aria-label="Editorial directions">
+                  {collection.presets.map((preset) => (
                     <li key={preset.id}>
                       <button
                         type="button"
                         className={preset.id === presetId ? 'is-selected' : undefined}
                         aria-pressed={preset.id === presetId}
+                        disabled={status === 'submitting'}
                         onClick={() => choosePreset(preset)}
                       >
-                        <span>{String(index + 1).padStart(2, '0')}</span>
                         <strong>{preset.display_name}</strong>
                         <p>{preset.one_line_mood}</p>
                         <i aria-hidden="true">{preset.id === presetId ? '●' : '○'}</i>
@@ -204,7 +215,7 @@ export function CastingPanel({
 
                 {selectedPreset && (
                   <section className="casting-direction-detail">
-                    <span>SELECTED TREATMENT</span>
+                    <span>CURRENT DIRECTION</span>
                     <h3>{selectedPreset.display_name}</h3>
                     <dl>
                       <div><dt>Pose</dt><dd>{selectedPreset.pose}</dd></div>
@@ -215,8 +226,7 @@ export function CastingPanel({
                 )}
 
                 <details className="casting-controls">
-                  <summary>Vary the casting <span>+</span></summary>
-                  <p>Every control moves independently. Every generated person is a fictional adult.</p>
+                  <summary>Adjust editorial <span>+</span></summary>
                   <div>
                     {(Object.keys(defaultControls) as Array<keyof CastingControls>).map((key) => {
                       const values = collection.variation_controls[key]
@@ -226,6 +236,7 @@ export function CastingPanel({
                           <span>{controlLabels[key]}</span>
                           <select
                             value={controls[key]}
+                            disabled={status === 'submitting'}
                             onChange={(event) =>
                               setControls((current) => ({ ...current, [key]: event.target.value }))
                             }
@@ -241,17 +252,29 @@ export function CastingPanel({
                 <footer className="casting-panel__footer">
                   <div>
                     <strong>DESIGN UNCHANGED</strong>
-                    <span>Adults only · fictional casting · no borrowed campaigns</span>
                   </div>
                   <button
                     type="button"
                     className="casting-submit"
                     onClick={() => void makePresentation()}
-                    disabled={status === 'submitting'}
+                    disabled={status === 'submitting' || !designVersionId || blocked}
                   >
-                    {status === 'submitting' ? 'Making view…' : 'Make a lookbook view'} <span>↗</span>
+                    {status === 'submitting'
+                      ? 'Working on it'
+                      : blocked
+                        ? 'Finish current draft first'
+                      : designVersionId
+                        ? 'Make editorial view'
+                        : 'Make the garment first'}{' '}
+                    <span>↗</span>
                   </button>
-                  {message && <p role="status">{message}</p>}
+                  {blocked ? (
+                    <p role="status">Finish the current draft before making an editorial view.</p>
+                  ) : message ? (
+                    <p role="status">{message}</p>
+                  ) : !designVersionId ? (
+                    <p>Choose or make a garment version before making an editorial view.</p>
+                  ) : null}
                 </footer>
               </div>
             )}

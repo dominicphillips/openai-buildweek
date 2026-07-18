@@ -4,7 +4,8 @@ import { Studio } from './components/Studio'
 import { brands } from './data/brands'
 import type { ReferenceCatalogItem, ReferenceItem, RitualStage, StudioSeed } from './lib/types'
 
-const sessionStorageKey = 'somethings-on:studio-session:v1'
+const defaultSessionStorageKey = 'somethings-on:studio-session:v1'
+const devDaySessionStorageKey = 'somethings-on:studio-session:devday:v1'
 
 type StoredSession = {
   completed: boolean
@@ -16,13 +17,13 @@ type StoredSession = {
 const emptySession: StoredSession = {
   completed: false,
   selectedBrandIds: [],
-  objectName: 'white T-shirt',
+  objectName: 'T-shirt',
   references: [],
 }
 
-function loadSession(): StoredSession {
+function loadSession(storageKey: string): StoredSession {
   try {
-    const raw = window.localStorage.getItem(sessionStorageKey)
+    const raw = window.localStorage.getItem(storageKey)
     if (!raw) return emptySession
     const stored = JSON.parse(raw) as Partial<StoredSession>
     const knownBrandIds = new Set(brands.map((brand) => brand.id))
@@ -51,22 +52,23 @@ function loadSession(): StoredSession {
 }
 
 function App() {
-  const [initialSession] = useState(loadSession)
   const [demoMode] = useState(
     () => new URLSearchParams(window.location.search).get('demo') === 'devday',
   )
+  const sessionStorageKey = demoMode ? devDaySessionStorageKey : defaultSessionStorageKey
+  const [initialSession] = useState(() => loadSession(sessionStorageKey))
   const [stage, setStage] = useState<RitualStage>(
     demoMode || initialSession.completed ? 'studio' : 'arrival',
   )
   const [selectedBrandIds, setSelectedBrandIds] = useState<string[]>(
-    demoMode ? ['john-elliott'] : initialSession.selectedBrandIds,
+    demoMode && initialSession.selectedBrandIds.length === 0
+      ? ['john-elliott']
+      : initialSession.selectedBrandIds,
   )
   const [objectName, setObjectName] = useState(
     demoMode ? 'DevDay distressed bomber + white T-shirt' : initialSession.objectName,
   )
-  const [references, setReferences] = useState<ReferenceItem[]>(
-    demoMode ? [] : initialSession.references,
-  )
+  const [references, setReferences] = useState<ReferenceItem[]>(initialSession.references)
 
   useEffect(() => {
     if (stage !== 'studio') return
@@ -85,14 +87,14 @@ function App() {
         references: persistentReferences,
       } satisfies StoredSession),
     )
-  }, [objectName, references, selectedBrandIds, stage])
+  }, [objectName, references, selectedBrandIds, sessionStorageKey, stage])
 
   const seed = useMemo<StudioSeed>(
     () => ({
       projectId: demoMode ? 'devday-swag' : 'demo',
       demoMode,
       selectedBrands: brands.filter((brand) => selectedBrandIds.includes(brand.id)),
-      objectName: objectName.trim() || 'white T-shirt',
+      objectName: objectName.trim() || 'T-shirt',
       references,
     }),
     [demoMode, objectName, references, selectedBrandIds],
@@ -149,12 +151,12 @@ function App() {
         {
           id: item.id,
           kind: 'catalog',
-          name: item.title,
+          name: item.product_name ?? item.metadata.product_name ?? item.title,
           previewUrl: item.image_url,
-          source: 'local-reference-catalog',
+          source: item.source_url ?? item.metadata.source_url ?? 'local-reference-catalog',
           labelId: item.metadata.label_association.id,
-          labelName: item.metadata.label_association.name,
-          tags: item.metadata.tags,
+          labelName: item.brand ?? item.metadata.brand ?? item.metadata.label_association.name,
+          tags: item.neutral_attributes ?? item.metadata.neutral_attributes ?? item.metadata.tags,
         },
       ]
     })
@@ -174,7 +176,7 @@ function App() {
     })
     setReferences([])
     setSelectedBrandIds([])
-    setObjectName('white T-shirt')
+    setObjectName('T-shirt')
     window.localStorage.setItem(
       sessionStorageKey,
       JSON.stringify({ ...emptySession, completed: true } satisfies StoredSession),
